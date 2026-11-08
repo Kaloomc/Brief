@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Brief</title>
+  <meta name="theme-color" content="#0f1411">
+  <meta name="color-scheme" content="dark">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Brief">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1 id="titre-ecran">Brief</h1>
+    <span id="badge-mode" class="badge" hidden>Démo</span>
+  </header>
+
+  <main>
+    <section id="connexion">
+      <h2>Connexion</h2>
+      <form id="form-connexion" class="carte">
+        <label>Mot de passe
+          <input name="motDePasse" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit" class="principal">Entrer</button>
+        <p class="message" role="status"></p>
+      </form>
+    </section>
+
+    <!-- Le lecteur : le brief du jour (#aujourdhui) ou un brief des archives (#brief/AAAA-MM-JJ) -->
+    <section id="lecteur">
+      <a id="retour-archives" class="retour" href="#archives" hidden>← Archives</a>
+      <div id="etat-brief" class="carte etat" hidden>
+        <h2 id="etat-titre"></h2>
+        <p id="etat-texte" class="aide"></p>
+        <button id="etat-bouton" type="button" class="secondaire" hidden></button>
+      </div>
+
+      <div id="carte-lecteur" class="carte lecteur" hidden>
+        <p id="brief-date" class="date"></p>
+        <h2 id="brief-titre"></h2>
+        <p id="brief-infos" class="aide"></p>
+        <p id="brief-avis" class="avis" role="status" hidden></p>
+
+        <div id="commandes" hidden>
+          <div class="progression">
+            <input id="barre" type="range" min="0" max="1000" value="0" step="1" aria-label="Position dans le brief">
+            <div class="temps"><span id="temps-courant">0:00</span><span id="temps-total">0:00</span></div>
+          </div>
+          <div class="boutons">
+            <button id="recul" type="button" class="rond" aria-label="Reculer de 15 secondes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg><span>15</span></button>
+            <button id="lecture" type="button" class="rond gros" aria-label="Lecture">
+              <svg id="icone-lecture" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+              <svg id="icone-pause" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+            </button>
+            <button id="avance" type="button" class="rond" aria-label="Avancer de 15 secondes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V2l5 4-5 4V7a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8z"/></svg><span>15</span></button>
+          </div>
+          <div class="reglettes">
+            <button id="chapitre-precedent" type="button" class="puce-bouton" aria-label="Chapitre précédent">⏮ Chapitre</button>
+            <button id="vitesse" type="button" class="puce-bouton" aria-label="Vitesse de lecture">1×</button>
+            <button id="chapitre-suivant" type="button" class="puce-bouton" aria-label="Chapitre suivant">Chapitre ⏭</button>
+          </div>
+        </div>
+
+        <div id="voix-iphone" hidden>
+          <button id="lire-voix" type="button" class="secondaire">Lire avec la voix de l’iPhone</button>
+          <p class="aide">Dernier recours : cette lecture <strong>s’arrête quand l’écran se verrouille</strong> et n’a pas de contrôles sur l’écran verrouillé.</p>
+        </div>
+
+        <ol id="liste-chapitres" class="chapitres"></ol>
+      </div>
+
+      <div id="textes"></div>
+    </section>
+
+    <section id="archives">
+      <h2>Archives</h2>
+      <input id="recherche" type="search" placeholder="Chercher dans les titres et les textes" aria-label="Chercher un brief" autocomplete="off">
+      <p id="archives-etat" class="aide" role="status"></p>
+      <ul id="liste-archives" class="archives"></ul>
+    </section>
+
+    <section id="reglages">
+      <h2>Réglages</h2>
+      <div class="carte">
+        <h3>Vitesse par défaut</h3>
+        <div id="choix-vitesse" class="segments" role="group" aria-label="Vitesse par défaut"></div>
+      </div>
+      <div class="carte">
+        <h3>Rappel du matin</h3>
+        <label class="ligne">
+          <input id="rappel-actif" type="checkbox"> Me prévenir quand le brief est prêt
+        </label>
+        <label>À partir de
+          <input id="rappel-heure" type="time" value="07:00">
+        </label>
+        <p id="rappel-aide" class="aide"></p>
+        <p id="rappel-message" class="message" role="status"></p>
+      </div>
+      <div class="carte">
+        <h3>Sur le serveur</h3>
+        <p id="diagnostic" class="aide"></p>
+      </div>
+      <p class="aide">Les sujets du brief se règlent dans la tâche planifiée « Brief du matin », pas ici.</p>
+    </section>
+  </main>
+
+  <div id="mini" class="mini" hidden>
+    <button id="mini-lecture" type="button" class="rond" aria-label="Lecture ou pause">
+      <svg id="mini-icone-lecture" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      <svg id="mini-icone-pause" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+    </button>
+    <a id="mini-texte" href="#aujourdhui"><strong id="mini-titre"></strong><span id="mini-chapitre"></span></a>
+    <div class="mini-barre"><div id="mini-progres"></div></div>
+  </div>
+  <button id="suivre" class="chip-suivre" type="button" hidden>↓ Suivre la lecture</button>
+
+  <audio id="audio" preload="metadata"></audio>
+
+  <nav>
+    <a href="#aujourdhui" data-onglet="aujourdhui"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm-2 13V8l6 4z"/></svg><span>Aujourd’hui</span></a>
+    <a href="#archives" data-onglet="archives"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v3H4zm1 4h14v10H5zm4 3v2h6v-2z"/></svg><span>Archives</span></a>
+    <a href="#reglages" data-onglet="reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L15 3.3h-4l-.4 2.7a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.7h4l.4-2.7a7 7 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg><span>Réglages</span></a>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>

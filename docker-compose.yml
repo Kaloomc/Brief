@@ -1,0 +1,48 @@
+# À coller dans Container Manager → Projet → Créer (voir docs/MISE-EN-LIGNE.md).
+# Au démarrage : installe git et ffmpeg (la première fois), clone ou met à jour le dépôt GitHub, installe et lance le serveur.
+# Pour déployer une nouvelle version : pousser sur GitHub, puis redémarrer le projet.
+# Si la nouvelle version échoue aux tests (npm test), l'ancienne est remise et démarre à sa place.
+# Au premier lancement, l'appli télécharge elle-même la voix française (Piper, environ 115 Mo) dans /docker/brief/app/data.
+# Les fichiers audio (30 jours), les textes en cache et la progression d'écoute sont dans /docker/brief/app/data (jamais envoyés sur GitHub).
+# Image Debian (et non Alpine) : Piper, la voix, a besoin de la bibliothèque glibc.
+services:
+  brief:
+    image: node:20-bookworm-slim
+    container_name: brief
+    restart: unless-stopped
+    ports:
+      - "3014:3014"
+    environment:
+      - PORT=3014
+      - TZ=Europe/Paris
+      # OBLIGATOIRE : mot de passe demandé une fois sur chaque téléphone (il protège aussi les fichiers audio).
+      # Vide = l'appli refuse d'écouter sur le réseau (elle sera injoignable).
+      - APP_PASSWORD=
+      # Mêmes valeurs que Repax, Agendix et Argenx : la base « Brief du matin » est dans la page Notion « Gestion »
+      # (vide = mode démo : brief fictif, aucune connexion à Notion).
+      - NOTION_TOKEN=
+      - NOTION_PAGE_ID=
+      # Adresse publique de l'appli : écrite dans « Audio (URL) » de chaque brief dans Notion.
+      - URL_PUBLIQUE=https://teranga-nas.synology.me:8447
+      # Widget iPhone (facultatif) : long jeton aléatoire (32 caractères au minimum) ; vide = widget désactivé.
+      - WIDGET_TOKEN=
+      # Voix Piper (facultatif) : fr_FR-siwis-medium (par défaut), fr_FR-upmc-medium, fr_FR-tom-medium ou fr_FR-siwis-low (plus rapide, moins fine).
+      # - VOIX_MODELE=fr_FR-siwis-medium
+    volumes:
+      - ./app:/app
+    working_dir: /app
+    command: >
+      sh -c "(command -v git >/dev/null && command -v ffmpeg >/dev/null ||
+              (apt-get update && apt-get install -y --no-install-recommends git ffmpeg ca-certificates && apt-get clean)) &&
+             git config --global --add safe.directory /app &&
+             if [ -d /app/.git ]; then
+               AVANT=$$(git rev-parse HEAD);
+               git fetch --depth 1 origin main && git reset --hard FETCH_HEAD;
+               if ! (npm ci --omit=dev && NOTION_TOKEN= npm test); then
+                 echo 'Nouvelle version en echec aux tests : retour a la precedente';
+                 git reset --hard $$AVANT && npm ci --omit=dev;
+               fi;
+             else
+               git clone --depth 1 https://github.com/Kaloomc/Brief.git /app && npm ci --omit=dev;
+             fi &&
+             npm start"
