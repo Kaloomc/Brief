@@ -410,10 +410,12 @@ function majMini() {
     $('#mini-texte').setAttribute('href', `#${b?.date === (b?.maintenant?.date) ? 'aujourdhui' : `brief/${enCours}`}`);
   }
 }
-// La carte du lecteur est-elle à l'écran ? (IntersectionObserver : aucun calcul de mise en page à chaque défilement)
+// Le gros bouton lecture est-il à l'écran ? (IntersectionObserver : aucun calcul de mise en page à chaque défilement.)
+// Les marges retirent la zone cachée par l'en-tête (avec l'encoche de l'iPhone) et par la barre du bas : tant que le bouton y est caché,
+// la mini-barre prend le relais.
 let carteALEcran = true;
 if ('IntersectionObserver' in window) {
-  new IntersectionObserver((entrees) => { carteALEcran = entrees[0].intersectionRatio > 0.25; majMini(); }, { threshold: [0, 0.25, 0.5] }).observe($('#carte-lecteur'));
+  new IntersectionObserver((entrees) => { carteALEcran = entrees[0].isIntersecting; majMini(); }, { rootMargin: '-120px 0px -110px 0px' }).observe($('#lecture'));
 }
 // Un geste de défilement manuel suspend le suivi automatique.
 for (const ev of ['wheel', 'touchmove']) window.addEventListener(ev, () => { if (!audio.paused && suivre) { suivre = false; majBoutons(); } }, { passive: true });

@@ -21,7 +21,11 @@ const { configuration } = require('./voix');
 const { limiteur } = require('./widget');
 const demo = require('./demo');
 
+// Au démarrage du conteneur (Docker), seuls les tests rapides tournent : sur un NAS à processeur ARM, les tests qui lancent ffmpeg
+// prennent 4 à 12 minutes et retardent d'autant le démarrage. `TEST_COMPLET=1 npm test` lance tout ; en local, tout tourne par défaut.
+const rapide = process.env.TEST_COMPLET !== '1' && (process.env.TEST_RAPIDE === '1' || fs.existsSync('/.dockerenv'));
 const ffmpegOk = (() => { try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
+const sansFfmpeg = !ffmpegOk || rapide;
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'brief-test-'));
 
 // --- Nettoyage du texte avant la voix --------------------------------------------------------------
@@ -281,7 +285,7 @@ function installer(pages, options = {}) {
 
 // --- Fabrication de l'audio ------------------------------------------------------------------------------------
 
-test('audio : un seul MP3 avec le manifest des chapitres, puis Audio (URL) et Statut dans Notion', { skip: !ffmpegOk }, async () => {
+test('audio : un seul MP3 avec le manifest des chapitres, puis Audio (URL) et Statut dans Notion', { skip: sansFfmpeg }, async () => {
   const b = briefTest('2026-11-05');
   const s = installer([b]);
   const fait = await s.audio.verifier();
@@ -322,7 +326,7 @@ test('audio : un seul MP3 avec le manifest des chapitres, puis Audio (URL) et St
   assert.strictEqual(s.audio.manifest('2026-11-05').mots, 140);
 });
 
-test('audio : pas de retraitement quand seul le statut est « Audio prêt » ; les pages trop anciennes sont ignorées', { skip: !ffmpegOk }, async () => {
+test('audio : pas de retraitement quand seul le statut est « Audio prêt » ; les pages trop anciennes sont ignorées', { skip: sansFfmpeg }, async () => {
   const s = installer([
     briefTest('2026-11-04', { statut: 'Audio prêt' }), // déjà traité par ailleurs
     briefTest('2026-10-01'),                            // plus de 30 jours : l'audio serait supprimé aussitôt
@@ -333,7 +337,7 @@ test('audio : pas de retraitement quand seul le statut est « Audio prêt » ; l
   assert.ok(!s.notion.appels.some((a) => a.startsWith('ecriture')));
 });
 
-test('audio : si la voix échoue, deux nouvelles tentatives, puis le texte reste lisible, sans passer le statut à « Erreur »', { skip: !ffmpegOk }, async () => {
+test('audio : si la voix échoue, deux nouvelles tentatives, puis le texte reste lisible, sans passer le statut à « Erreur »', { skip: sansFfmpeg }, async () => {
   const b = briefTest('2026-11-05');
   let essais = 0;
   const s = installer([b], { app: { moteur: async () => { essais++; throw new Error('Piper plante'); } } });
@@ -356,7 +360,7 @@ test('audio : si la voix échoue, deux nouvelles tentatives, puis le texte reste
   assert.strictEqual(res.json.audioInfo, null);
 });
 
-test('audio : une voix qui réussit à la deuxième tentative suffit', { skip: !ffmpegOk }, async () => {
+test('audio : une voix qui réussit à la deuxième tentative suffit', { skip: sansFfmpeg }, async () => {
   const b = briefTest('2026-11-05');
   let essais = 0;
   const bonne = fausseVoix();
@@ -367,7 +371,7 @@ test('audio : une voix qui réussit à la deuxième tentative suffit', { skip: !
   assert.strictEqual(s.audio.etatDe('2026-11-05').etat, 'pret');
 });
 
-test('audio : le script réécrit pendant la fabrication n\'est pas déclaré prêt', { skip: !ffmpegOk }, async () => {
+test('audio : le script réécrit pendant la fabrication n\'est pas déclaré prêt', { skip: sansFfmpeg }, async () => {
   const b = briefTest('2026-11-05');
   const bonne = fausseVoix();
   const s = installer([b], { app: { moteur: async (t, w) => { b.mots = 200; return bonne(t, w); } } }); // la tâche Claude réécrit pendant la voix
@@ -376,7 +380,7 @@ test('audio : le script réécrit pendant la fabrication n\'est pas déclaré pr
   assert.strictEqual(b.statut, 'Script prêt');
 });
 
-test('audio : Notion injoignable à l\'écriture, l\'audio reste lisible et la mise à jour est refaite plus tard', { skip: !ffmpegOk }, async () => {
+test('audio : Notion injoignable à l\'écriture, l\'audio reste lisible et la mise à jour est refaite plus tard', { skip: sansFfmpeg }, async () => {
   const b = briefTest('2026-11-05');
   const s = installer([b]);
   const vrai = s.notion.marquerAudioPret;
@@ -423,7 +427,7 @@ async function requete(s, chemin, { methode = 'GET', corps, entetes = {} } = {})
 }
 const get = (s, chemin, o) => requete(s, chemin, o);
 
-test('serveur : mot de passe obligatoire pour l\'API ET pour les fichiers audio', { skip: !ffmpegOk }, async () => {
+test('serveur : mot de passe obligatoire pour l\'API ET pour les fichiers audio', { skip: sansFfmpeg }, async () => {
   const s = installer([briefTest('2026-11-05')], { motDePasse: 'secret-de-test' });
   await s.audio.verifier();
   assert.strictEqual((await get(s, '/api/briefs')).status, 401);
@@ -446,7 +450,7 @@ test('serveur : mot de passe obligatoire pour l\'API ET pour les fichiers audio'
   assert.strictEqual((await get(s, '/audio/2026-11-05.mp3', { entetes: { cookie: c } })).status, 200);
 });
 
-test('serveur : audio servi avec le bon type MIME et les requêtes Range (Safari, iOS)', { skip: !ffmpegOk }, async () => {
+test('serveur : audio servi avec le bon type MIME et les requêtes Range (Safari, iOS)', { skip: sansFfmpeg }, async () => {
   const s = installer([briefTest('2026-11-05')]);
   await s.audio.verifier();
   const taille = fs.statSync(s.audio.fichier('2026-11-05', 'mp3')).size;
@@ -473,7 +477,7 @@ test('serveur : audio servi avec le bon type MIME et les requêtes Range (Safari
   assert.strictEqual((await get(s, '/audio/..%2Fserver.js')).status, 404);
 });
 
-test('serveur : liste, détail, chapitres rattachés à l\'audio, archives et recherche', { skip: !ffmpegOk }, async () => {
+test('serveur : liste, détail, chapitres rattachés à l\'audio, archives et recherche', { skip: sansFfmpeg }, async () => {
   const s = installer([briefTest('2026-11-05'), briefTest('2026-11-04', { statut: 'Audio prêt' }), briefTest('2026-09-20', { statut: 'Audio prêt' })]);
   await s.audio.verifier();
   const liste = (await get(s, '/api/briefs')).json;
@@ -568,7 +572,7 @@ test('sécurité : le texte des briefs est servi comme du texte, jamais exécut�
 
 // --- Widget ----------------------------------------------------------------------------------------------------------
 
-test('widget : mêmes règles que Repax et Argenx (jeton, cache seulement, limite de débit)', { skip: !ffmpegOk }, async () => {
+test('widget : mêmes règles que Repax et Argenx (jeton, cache seulement, limite de débit)', { skip: sansFfmpeg }, async () => {
   const jeton = crypto.randomBytes(24).toString('hex');
   const sans = installer([briefTest('2026-11-05')]);
   assert.strictEqual((await get(sans, '/api/widget/brief')).status, 404, 'sans WIDGET_TOKEN la route n\'existe pas');
@@ -611,7 +615,7 @@ test('widget : limiteur de débit', () => {
 
 // --- Rappel du matin -------------------------------------------------------------------------------------------------
 
-test('rappel : jeton VAPID valide, une seule notification par jour, abonnement périmé retiré', { skip: !ffmpegOk }, async () => {
+test('rappel : jeton VAPID valide, une seule notification par jour, abonnement périmé retiré', { skip: sansFfmpeg }, async () => {
   const envoyes = [];
   let statut = 201;
   const fetchImpl = async (url, opts) => { envoyes.push({ url, entetes: opts.headers }); return { status: statut }; };
@@ -704,7 +708,7 @@ test('voix : une voix réentraînée pour un autre moteur est détectée (Piper 
   assert.strictEqual(modeleCompatible(path.join(d, 'absent.json')), false);
 });
 
-test('voix : si le premier moteur échoue, tout le brief est refait avec le suivant', { skip: !ffmpegOk }, async () => {
+test('voix : si le premier moteur échoue, tout le brief est refait avec le suivant', { skip: sansFfmpeg }, async () => {
   const d = tmp();
   const voix = creerVoix(d, { env: { VOIX_MOTEUR: 'azure,piper' }, journal: () => {} });
   const vus = [];
@@ -774,7 +778,7 @@ test('interface : chaque bouton a un nom, les icônes sont décoratives, pas de 
   assert.match(html, /<nav aria-label=/);
 });
 
-test('voix : la voix par défaut change, mais sans accès à Internet on garde la voix Piper déjà installée', { skip: !ffmpegOk }, async () => {
+test('voix : la voix par défaut change, mais sans accès à Internet on garde la voix Piper déjà installée', { skip: sansFfmpeg }, async () => {
   const d = tmp();
   const dossierPiper = path.join(d, 'piper');
   fs.mkdirSync(path.join(dossierPiper, 'piper'), { recursive: true });
@@ -808,7 +812,10 @@ test('voix : la voix par défaut change, mais sans accès à Internet on garde l
 
 // --- Changer de voix : refaire les audios déjà prêts -----------------------------------------------------------------------
 
-test('refaire les audios avec la voix actuelle : sans toucher à Notion, l\'ancien reste lisible si ça échoue', { skip: !ffmpegOk }, async () => {
+// Attend la fin d'un lot de fabrication : jusqu'à 5 minutes (un NAS lent met longtemps), sans compter un nombre de tours fixe.
+const finDuLot = async (s) => { const limite = Date.now() + 300e3; while (s.audio.lot.enCours && Date.now() < limite) await new Promise((r) => setTimeout(r, 50)); };
+
+test('refaire les audios avec la voix actuelle : sans toucher à Notion, l\'ancien reste lisible si ça échoue', { skip: sansFfmpeg }, async () => {
   const b = briefTest('2026-11-05');
   const vieux = briefTest('2026-11-04', { statut: 'Audio prêt' });
   const s = installer([b, vieux]);
@@ -823,7 +830,7 @@ test('refaire les audios avec la voix actuelle : sans toucher à Notion, l\'anci
   const demande = await requete(s, '/api/audio/refaire', { methode: 'POST', corps: {} });
   assert.strictEqual(demande.json.nombre, 2);
   assert.strictEqual((await requete(s, '/api/audio/refaire', { methode: 'POST', corps: {} })).status, 409, 'pas deux lots en même temps');
-  for (let i = 0; i < 100 && s.audio.lot.enCours; i++) await new Promise((r) => setTimeout(r, 100));
+  await finDuLot(s);
   assert.strictEqual(s.audio.lot.enCours, false);
   assert.strictEqual(s.audio.lot.fait, 2);
   assert.ok(s.log.length >= 5, 'la voix a relu les chapitres des deux briefs');
@@ -832,7 +839,7 @@ test('refaire les audios avec la voix actuelle : sans toucher à Notion, l\'anci
   assert.strictEqual(vieux.statut, 'Audio prêt');
   // un seul brief, une date invalide, un brief sans audio
   assert.strictEqual((await requete(s, '/api/audio/refaire', { methode: 'POST', corps: { date: '2026-11-05' } })).json.nombre, 1);
-  for (let i = 0; i < 100 && s.audio.lot.enCours; i++) await new Promise((r) => setTimeout(r, 100));
+  await finDuLot(s);
   assert.strictEqual((await requete(s, '/api/audio/refaire', { methode: 'POST', corps: { date: '2026-11-30' } })).status, 404);
   assert.strictEqual((await requete(s, '/api/audio/refaire', { methode: 'POST', corps: { date: 'x' } })).status, 400);
 
@@ -841,7 +848,7 @@ test('refaire les audios avec la voix actuelle : sans toucher à Notion, l\'anci
   const vrai = s.voix.fabriquer;
   s.voix.fabriquer = async () => { throw new Error('voix en panne'); };
   await requete(s, '/api/audio/refaire', { methode: 'POST', corps: { date: '2026-11-05' } });
-  for (let i = 0; i < 300 && s.audio.lot.enCours; i++) await new Promise((r) => setTimeout(r, 100));
+  await finDuLot(s);
   s.voix.fabriquer = vrai;
   assert.ok(fs.readFileSync(s.audio.fichier('2026-11-05', 'mp3')).equals(garde));
   assert.strictEqual((await get(s, '/api/briefs/2026-11-05')).json.audio, true);
@@ -849,4 +856,14 @@ test('refaire les audios avec la voix actuelle : sans toucher à Notion, l\'anci
   const r = (await get(s, '/api/reglages')).json;
   assert.strictEqual(r.audios.gardes, 2);
   assert.strictEqual(r.audios.autreVoix, 2, 'ils portent « voix de test », la voix actuelle est Piper');
+});
+
+test('interface : champs à 16 px (sinon Safari zoome), pas de zoom bloqué, zones sûres de l\'iPhone prises en compte', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'public', 'style.css'), 'utf8');
+  assert.match(css, /input\[type=password\][^{]*\{\s*font-size: 1rem/);
+  assert.match(css, /env\(safe-area-inset-top\)/);
+  assert.match(css, /env\(safe-area-inset-bottom\)/);
+  const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  assert.match(html, /viewport-fit=cover/);
+  assert.ok(!/user-scalable=no|maximum-scale/.test(html), 'le zoom ne doit pas être bloqué (accessibilité)');
 });

@@ -95,7 +95,10 @@ function creerApp({
     res.sendFile(`${m[1]}.mp3`, {
       root: audio.dossierAudio, acceptRanges: true, dotfiles: 'deny',
       headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, no-cache', 'Content-Disposition': `inline; filename="brief-${m[1]}.mp3"` },
-    }, (err) => { if (err && !res.headersSent) next(err); });
+    }, (err) => {
+      // Un téléphone qui coupe la requête (Safari lit d'abord quelques octets, puis repart) n'est pas une erreur du serveur.
+      if (err && !res.headersSent && err.code !== 'ECONNABORTED' && err.message !== 'Request aborted') next(err);
+    });
   });
 
   app.use(express.static(path.join(__dirname, 'public'), { setHeaders: (res) => res.set('Cache-Control', 'no-cache') }));

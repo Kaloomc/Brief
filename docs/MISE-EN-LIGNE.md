@@ -123,7 +123,7 @@ Menu **⋮** → **Installer l'application**.
 
 1. Pousse les changements sur GitHub (`git push`).
 2. **Container Manager** → **Projet** → `brief` → **Action** → **Redémarrer**.
-Au redémarrage, le conteneur récupère la dernière version et lance les tests ; s'ils échouent, l'ancienne version est remise. Tes fichiers (`data/`) sont conservés, la voix n'est pas retéléchargée.
+Au redémarrage, le conteneur récupère la dernière version et lance les tests rapides (quelques secondes) ; s'ils échouent, l'ancienne version est remise (le Journal affiche alors « Nouvelle version en echec aux tests : retour a la precedente » : c'est le message à chercher si une mise à jour ne semble pas prise en compte). Tes fichiers (`data/`) sont conservés, la voix n'est pas retéléchargée.
 
 Pour changer le mot de passe ou un jeton : **Projet** → `brief` → **Arrêter** → **Modifier** le YAML → **Enregistrer** → **Démarrer**.
 

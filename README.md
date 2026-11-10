@@ -23,7 +23,7 @@ npm start
 
 Puis ouvrir http://localhost:3014. Sans `NOTION_TOKEN`, c'est le **mode démo** : trois briefs fictifs (le texte est inventé) et un vieux brief dont l'audio a « expiré ». La voix est téléchargée toute seule au premier lancement (Piper et la voix française, environ 115 Mo, dans `data/`) puis fabrique l'audio des briefs de démo. Sans `APP_PASSWORD`, le serveur n'écoute que sur 127.0.0.1.
 
-Tests : `npm test` (aucun réseau, ni Notion ni voix : un son de test remplace la voix, ffmpeg est utilisé pour de vrai).
+Tests : `npm test` (aucun réseau, ni Notion ni voix : un son de test remplace la voix, ffmpeg est utilisé pour de vrai). **Dans le conteneur du NAS**, seuls les tests rapides tournent au démarrage (une seconde) : les 14 tests qui lancent ffmpeg prenaient 4 à 12 minutes sur le processeur ARM du NAS. `TEST_COMPLET=1 npm test` lance tout, comme en local.
 
 ## Variables d'environnement
 
