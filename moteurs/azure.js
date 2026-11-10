@@ -14,12 +14,22 @@ const MAX_CARACTERES = 3500; // par requête (un chapitre de 5 minutes en fait e
 
 const echapperXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 
+// Réglages d'expression facultatifs (AZURE_STYLE, AZURE_STYLE_DEGRE, AZURE_HAUTEUR). Valeurs vérifiées : rien d'autre ne passe dans le SSML.
+const STYLE_OK = /^[a-z][a-z-]{1,30}$/;               // cheerful, friendly, excited…
+const DEGRE_OK = /^(?:0\.[5-9]|1(?:\.\d)?|2(?:\.0)?)$/;  // 0,5 à 2
+const HAUTEUR_OK = /^[+-]?\d{1,2}(?:\.\d)?(?:%|st)$/;    // +4% ou +1st
+
 // Texte (une phrase par ligne) → SSML. Une courte pause entre les phrases, comme les autres moteurs.
-function construireSsml(texte, voix, vitesse = 1) {
+function construireSsml(texte, voix, vitesse = 1, { style, degre, hauteur } = {}) {
   const lignes = String(texte).split('\n').map((l) => l.trim()).filter(Boolean);
   const pourcent = Math.round((vitesse - 1) * 100);
   const corps = lignes.map((l) => echapperXml(l)).join('<break time="300ms"/>');
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="fr-FR"><voice name="${echapperXml(voix)}"><prosody rate="${pourcent >= 0 ? '+' : ''}${pourcent}%">${corps}</prosody></voice></speak>`;
+  const pitch = hauteur && HAUTEUR_OK.test(hauteur) ? ` pitch="${hauteur}"` : '';
+  const interieur = `<prosody rate="${pourcent >= 0 ? '+' : ''}${pourcent}%"${pitch}>${corps}</prosody>`;
+  const expressif = style && STYLE_OK.test(style)
+    ? `<mstts:express-as style="${style}"${degre && DEGRE_OK.test(degre) ? ` styledegree="${degre}"` : ''}>${interieur}</mstts:express-as>`
+    : interieur;
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="fr-FR"><voice name="${echapperXml(voix)}">${expressif}</voice></speak>`;
 }
 
 // Découpe aux limites de lignes pour ne jamais dépasser MAX_CARACTERES par requête.
@@ -38,6 +48,7 @@ function creer({ dossierDonnees, env = process.env, journal = console.log, fetch
   const cfg = {
     cle: env.AZURE_SPEECH_KEY || '', region: (env.AZURE_SPEECH_REGION || '').trim(),
     voix: env.AZURE_VOIX || 'fr-FR-VivienneMultilingualNeural', vitesse: Number(env.AZURE_VITESSE) || 1,
+    style: (env.AZURE_STYLE || '').trim(), degre: (env.AZURE_STYLE_DEGRE || '').trim(), hauteur: (env.AZURE_HAUTEUR || '').trim(),
   };
   const etat = { prete: false, installation: false, erreur: null, essaiMs: null };
   const libelle = `Azure ${cfg.voix}`;
@@ -55,7 +66,7 @@ function creer({ dossierDonnees, env = process.env, journal = console.log, fetch
           'Ocp-Apim-Subscription-Key': cfg.cle, 'Content-Type': 'application/ssml+xml',
           'X-Microsoft-OutputFormat': 'riff-24khz-16bit-mono-pcm', 'User-Agent': 'Brief',
         },
-        body: construireSsml(texte, cfg.voix, cfg.vitesse),
+        body: construireSsml(texte, cfg.voix, cfg.vitesse, cfg),
       });
       if (res.ok) return Buffer.from(await res.arrayBuffer());
       const detail = (await res.text().catch(() => '')).slice(0, 200).replace(cfg.cle, '***');

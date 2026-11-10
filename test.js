@@ -734,6 +734,12 @@ test('azure : SSML sûr, clé jamais dans les erreurs, repli possible, rien d\'e
   assert.ok(ssml.includes('<break time="300ms"/>') && ssml.includes('name="fr-FR-VivienneMultilingualNeural"'));
   assert.deepStrictEqual(azure.decouper('a\n'.repeat(3000)).map((m) => m.length < 3600), [true, true]);
 
+  // Expression (plus enjouée) : style, degré et hauteur facultatifs, vérifiés ; une valeur douteuse est ignorée
+  const expressif = azure.construireSsml('Bonjour.', 'fr-FR-DeniseNeural', 1.05, { style: 'cheerful', degre: '1.5', hauteur: '+4%' });
+  assert.ok(expressif.includes('<mstts:express-as style="cheerful" styledegree="1.5">') && expressif.includes('pitch="+4%"') && expressif.includes('rate="+5%"'));
+  const piege = azure.construireSsml('Bonjour.', 'v', 1, { style: 'x"><evil/>', degre: '9', hauteur: '"><evil/>' });
+  assert.ok(!piege.includes('evil') && !piege.includes('express-as') && !piege.includes('pitch'));
+  assert.ok(!azure.construireSsml('Bonjour.', 'v', 1).includes('express-as'), 'sans réglage : le SSML reste simple');
   const appels = [];
   const faux = (statut) => async (url, opts) => { appels.push({ url, opts }); return { ok: statut === 200, status: statut, arrayBuffer: async () => new ArrayBuffer(8), text: async () => 'clé ' + opts.headers['Ocp-Apim-Subscription-Key'] + ' refusée' }; };
   const d = tmp();

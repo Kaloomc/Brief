@@ -94,9 +94,9 @@
           <div class="boutons">
             <button id="chapitre-precedent" type="button" class="rond petit" aria-label="Chapitre précédent"><svg class="ico" aria-hidden="true"><use href="#i-prev"/></svg></button>
             <button id="recul" type="button" class="rond" aria-label="Reculer de 15 secondes"><svg class="ico" aria-hidden="true"><use href="#i-back15"/></svg></button>
-            <button id="lecture" type="button" class="rond gros" aria-label="Lecture">
-              <svg id="icone-lecture" class="ico" aria-hidden="true"><use href="#i-play"/></svg>
-              <svg id="icone-pause" class="ico" aria-hidden="true" hidden><use href="#i-pause"/></svg>
+            <button id="lecture" type="button" class="rond gros" aria-label="Lecture" data-etat="lecture">
+              <svg id="icone-lecture" class="ico i-lecture" aria-hidden="true"><use href="#i-play"/></svg>
+              <svg id="icone-pause" class="ico i-pause" aria-hidden="true"><use href="#i-pause"/></svg>
             </button>
             <button id="avance" type="button" class="rond" aria-label="Avancer de 15 secondes"><svg class="ico" aria-hidden="true"><use href="#i-fwd15"/></svg></button>
             <button id="chapitre-suivant" type="button" class="rond petit" aria-label="Chapitre suivant"><svg class="ico" aria-hidden="true"><use href="#i-next"/></svg></button>
@@ -160,9 +160,9 @@
   </main>
 
   <div id="mini" class="mini" hidden>
-    <button id="mini-lecture" type="button" class="rond" aria-label="Lecture ou pause">
-      <svg id="mini-icone-lecture" class="ico" aria-hidden="true"><use href="#i-play"/></svg>
-      <svg id="mini-icone-pause" class="ico" aria-hidden="true" hidden><use href="#i-pause"/></svg>
+    <button id="mini-lecture" type="button" class="rond" aria-label="Lecture ou pause" data-etat="lecture">
+      <svg id="mini-icone-lecture" class="ico i-lecture" aria-hidden="true"><use href="#i-play"/></svg>
+      <svg id="mini-icone-pause" class="ico i-pause" aria-hidden="true"><use href="#i-pause"/></svg>
     </button>
     <a id="mini-texte" href="#aujourdhui"><strong id="mini-titre"></strong><span id="mini-chapitre"></span></a>
     <div class="mini-barre" aria-hidden="true"><div id="mini-progres"></div></div>

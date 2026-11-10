@@ -36,6 +36,7 @@ Tests : `npm test` (aucun réseau, ni Notion ni voix : un son de test remplace l
 | `VOIX_MOTEUR` | `piper` (défaut), `kokoro`, `azure`, ou une liste de repli (`azure,piper`). Voir « La voix ». |
 | `VOIX_MODELE`, `VOIX_LOCUTEUR` | Voix Piper (`fr_FR-upmc-medium` par défaut, voix 1). |
 | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_VOIX` | Seulement pour `azure` (en ligne). |
+| `AZURE_HAUTEUR`, `AZURE_VITESSE`, `AZURE_STYLE`, `AZURE_STYLE_DEGRE` | Expression d'Azure, facultatifs : voix plus enjouée (`+3%`, `1.05`, `cheerful` si la voix le gère). |
 | `NOTION_BASE_BRIEF` | Facultatif : identifiant de la **base** (pas la collection) si on ne veut pas la chercher par son titre. |
 | `PORT` | 3014 par défaut. |
 | `DOSSIER_DONNEES`, `PIPER_DIR`, `FFMPEG`, `FFPROBE`, `PIPER_LENGTH_SCALE`, `VOIX_AUTO_INSTALL=0` | Pour les cas particuliers (tests, voix déjà installée, voix plus rapide : `PIPER_LENGTH_SCALE=0.9`). |
@@ -103,7 +104,7 @@ Voir [docs/VOIX.md](docs/VOIX.md) : comparaison des voix (vitesse, lisibilité, 
 
 ## Écrans
 
-- **Aujourd'hui** : titre, date, durée ; gros bouton lecture/pause, ±15 secondes, barre de progression, vitesse (1×, 1,25×, 1,5×, 2×) ; liste des chapitres avec leur durée (un appui saute au début) ; en dessous le texte de chaque chapitre et ses sources (titre, site, un appui ouvre dans un nouvel onglet avec `rel="noopener noreferrer"`). Le chapitre en cours est mis en avant et suivi automatiquement (un geste de défilement suspend le suivi : bouton « Suivre la lecture »). Une mini-barre garde le lecteur sous la main quand on lit plus bas.
+- **Aujourd'hui** : titre, date, durée ; gros bouton lecture/pause, ±15 secondes, barre de progression, vitesse (1×, 1,25×, 1,5×, 2×) ; liste des chapitres avec leur durée (un appui saute au début) ; en dessous, les **sources** de chaque chapitre en cartes (une tuile colorée par site, titre, site, un appui ouvre dans un nouvel onglet avec `rel="noopener noreferrer"`). **La transcription n'est pas affichée** quand l'audio est prêt (on l'écoute) ; elle apparaît seulement si l'audio n'est pas disponible (voix en panne, audio supprimé). Le chapitre en cours est mis en avant et suivi automatiquement (un geste de défilement suspend le suivi : bouton « Suivre la lecture »). Une mini-barre garde le lecteur sous la main quand on lit plus bas.
   États : « Le brief arrive » (avant 10 h, rien d'écrit), « Audio en préparation » (le texte est déjà lisible), « Brief indisponible » (rien à 10 h), « Audio indisponible » (la voix a échoué, avec « Réessayer »), statut « Erreur » signalé. Sans audio : « Lire avec la voix de l'iPhone » (en dernier recours, avec l'avertissement que ça s'arrête quand l'écran se verrouille).
 - **Archives** : les briefs par date (titre, durée, sujets), pastille « écouté », recherche par mot du titre ou du texte ; un appui ouvre le brief dans le même lecteur. Audio supprimé (plus de 30 jours) : « texte seul ».
 - **Réglages** : vitesse par défaut, heure du rappel, état de la voix. Pas de réglage de sujets : ils sont définis dans la tâche planifiée.

@@ -17,6 +17,8 @@ function h(tag, props, ...enfants) {
   return el;
 }
 const vider = (el) => el.replaceChildren();
+// Teinte (0 à 359) stable pour un nom : la couleur d'un site ne change jamais d'un jour à l'autre.
+const teinteDe = (nom) => { let n = 7; for (const c of String(nom).toLowerCase()) n = (n * 31 + c.codePointAt(0)) % 360; return n; };
 
 // Icône du jeu de symboles du index.html (jamais d'émoji) : icone('check') → <svg><use href="#i-check"/></svg>
 const SVG = 'http://www.w3.org/2000/svg';
@@ -222,21 +224,31 @@ function dessinerBrief() {
     ol.append(h('li', { 'data-i': i }, bouton));
   });
 
+  // Sous le lecteur : les SOURCES de chaque chapitre, en cartes. Le texte (la transcription) n'est montré que si l'audio n'est pas
+  // disponible (voix en panne, audio supprimé…) : sinon il ne sert à rien, on l'écoute.
   const zone = $('#textes');
   vider(zone);
+  const montrerTexte = !b.audio;
+  const total = b.chapitres.reduce((n, c) => n + c.sources.length, 0);
+  if (total && !montrerTexte) zone.append(h('h3', { class: 'titre-sources' }, icone('external'), `Sources · ${total} article${total > 1 ? 's' : ''}`));
   b.chapitres.forEach((c, i) => {
-    const art = h('article', { class: 'chapitre', id: `chapitre-${i}`, 'data-i': i }, h('h3', { texte: c.titre }));
-    (c.texte || '').split(/\n{2,}/).filter(Boolean).forEach((p) => art.append(h('p', { texte: p })));
+    if (!c.sources.length && !montrerTexte) return; // un chapitre sans source n'a rien à montrer
+    const art = h('article', { class: 'chapitre', id: `chapitre-${i}`, 'data-i': i },
+      h('h3', {}, h('span', { class: 'pastille-num', 'aria-hidden': 'true', texte: String(i + 1) }), h('span', { class: 'nom-chapitre', texte: c.titre }),
+        c.sources.length ? h('span', { class: 'compte', texte: `${c.sources.length} source${c.sources.length > 1 ? 's' : ''}` }) : null));
+    if (montrerTexte) (c.texte || '').split(/\n{2,}/).filter(Boolean).forEach((p) => art.append(h('p', { texte: p })));
     if (c.sources.length) {
-      const ul = h('ul', { class: 'sources' }, h('h4', { texte: 'Sources' }));
+      const ul = h('ul', { class: 'sources' });
       for (const s of c.sources) {
         const url = s.url && urlSure(s.url);
-        const monogramme = h('span', { class: 'mono', 'aria-hidden': 'true', texte: ([...(s.site || s.titre)][0] || '?') });
-        const corps = h('span', { class: 'corps' }, h('span', { class: 'titre', texte: s.titre }), s.site ? h('span', { class: 'site', texte: s.site }) : null);
+        const nom = s.site || s.titre;
+        const monogramme = h('span', { class: 'mono', 'aria-hidden': 'true', texte: ([...nom][0] || '?') });
+        monogramme.style.setProperty('--teinte', String(teinteDe(nom))); // une couleur par site, toujours la même
+        const corps = h('span', { class: 'corps' }, s.site ? h('span', { class: 'site', texte: s.site }) : null, h('span', { class: 'titre', texte: s.titre }));
         // Un appui ouvre la source dans un nouvel onglet, sans rien transmettre à la page ouverte.
         ul.append(h('li', {}, url
           ? h('a', { class: 'source', href: url, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `${s.titre}${s.site ? `, ${s.site}` : ''} (s’ouvre dans un nouvel onglet)` }, monogramme, corps, icone('external'))
-          : h('span', { class: 'source' }, monogramme, corps)));
+          : h('span', { class: 'source sans-lien' }, monogramme, corps)));
       }
       art.append(ul);
     }
@@ -373,10 +385,10 @@ barre.addEventListener('change', () => { if (Number.isFinite(audio.duration)) au
 function majBoutons() {
   const lecture = !audio.paused && enCours === brief?.date;
   const general = !audio.paused;
-  for (const [pl, pa] of [['#icone-lecture', '#icone-pause'], ['#mini-icone-lecture', '#mini-icone-pause']]) {
-    $(pl).hidden = pl.startsWith('#mini') ? general : lecture;
-    $(pa).hidden = pl.startsWith('#mini') ? !general : !lecture;
-  }
+  // L'icône change par un attribut de données (la propriété « hidden » n'existe pas sur les éléments SVG) : le gros bouton
+  // devient « pause » quand ça joue, et redevient « lecture » en pause, avec une petite transition.
+  $('#lecture').dataset.etat = lecture ? 'pause' : 'lecture';
+  $('#mini-lecture').dataset.etat = general ? 'pause' : 'lecture';
   $('#lecture').setAttribute('aria-label', lecture ? 'Pause' : 'Lecture');
   $('#mini-lecture').setAttribute('aria-label', general ? 'Pause' : 'Lecture');
   $('#suivre').hidden = !(lecture && !suivre);

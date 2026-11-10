@@ -38,6 +38,9 @@ services:
       # - AZURE_SPEECH_KEY=
       # - AZURE_SPEECH_REGION=francecentral
       # - AZURE_VOIX=fr-FR-VivienneMultilingualNeural
+      # Plus enjouée (facultatif, à essayer) : AZURE_HAUTEUR=+3% et AZURE_VITESSE=1.05 ; AZURE_STYLE=cheerful (seulement si la voix choisie le gère, par exemple fr-FR-DeniseNeural).
+      # - AZURE_HAUTEUR=+3%
+      # - AZURE_VITESSE=1.05
     volumes:
       - ./app:/app
     working_dir: /app

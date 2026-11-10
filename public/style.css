@@ -80,6 +80,9 @@ input[type=password], input[type=search], input[type=time] {
   width: 100%; min-height: 48px; padding: 8px var(--e4); border-radius: var(--r-champ);
   border: 1px solid var(--bord-champ); background: var(--surface-2); color: var(--texte);
 }
+/* Champ d'heure : sous Safari (iPhone) il s'étirait sur toute la largeur de la carte ; on le garde à la taille d'une heure. */
+input[type=time] { width: 9.5rem; max-width: 100%; justify-self: start; -webkit-appearance: none; appearance: none; text-align: left; }
+input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 input[type=checkbox] { width: 24px; height: 24px; accent-color: var(--accent); flex: none; }
 :focus-visible { outline: 2px solid var(--accent-clair); outline-offset: 2px; }
 
@@ -140,6 +143,13 @@ button.rond.gros {
   box-shadow: 0 0 0 7px rgba(76, 196, 127, .14), 0 12px 32px rgba(76, 196, 127, .32);
 }
 button.rond.gros .ico { width: 40px; height: 40px; }
+/* Lecture <-> pause : les deux icônes sont superposées, l'une se fond dans l'autre (rotation et rebond léger) */
+button[data-etat] .ico { position: absolute; transition: opacity .18s ease, transform .3s cubic-bezier(.3, 1.5, .5, 1); }
+button[data-etat=lecture] .i-pause { opacity: 0; transform: scale(.4) rotate(-80deg); }
+button[data-etat=pause] .i-lecture { opacity: 0; transform: scale(.4) rotate(80deg); }
+button[data-etat=lecture] .i-lecture, button[data-etat=pause] .i-pause { opacity: 1; transform: none; }
+button.rond.gros[data-etat=pause] { animation: halo 2.4s ease-in-out infinite; }
+@keyframes halo { 0%, 100% { box-shadow: 0 0 0 7px rgba(76, 196, 127, .14), 0 12px 32px rgba(76, 196, 127, .32); } 50% { box-shadow: 0 0 0 13px rgba(76, 196, 127, .06), 0 12px 38px rgba(76, 196, 127, .45); } }
 .reglettes { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--e2); }
 .puce-bouton { min-height: 44px; min-width: 76px; border-radius: var(--r-puce); background: rgba(255, 255, 255, .07); font-weight: 750; color: var(--accent-clair); padding: 6px var(--e4); font-variant-numeric: tabular-nums; }
 
@@ -166,22 +176,27 @@ button.rond.gros .ico { width: 40px; height: 40px; }
 body.joue .chapitres .en-cours .num .txt { display: none; }
 body.joue .chapitres .en-cours .eq { display: flex; }
 
-/* Textes et sources */
+/* Sources : une carte par chapitre, une tuile colorée par article */
 #textes { display: grid; gap: var(--e3); }
-.chapitre { background: var(--surface-1); border: 1px solid var(--bord); border-radius: var(--r-carte); padding: var(--e5) var(--e4) var(--e4); scroll-margin-top: calc(var(--haut-entete) + 12px); }
-.chapitre.en-cours { border-color: rgba(76, 196, 127, .55); background: linear-gradient(180deg, rgba(76, 196, 127, .07), var(--surface-1) 40%); }
-.chapitre h3 { color: var(--texte); font-size: 1.125rem; font-weight: 750; letter-spacing: -.01em; margin: 0 0 var(--e3); }
-.chapitre.en-cours h3::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; box-shadow: 0 0 0 4px rgba(76, 196, 127, .2); }
+.titre-sources { margin: var(--e2) 0 0; font-size: .8125rem; letter-spacing: .08em; text-transform: uppercase; }
+.titre-sources .ico { width: 16px; height: 16px; color: var(--accent-clair); }
+.chapitre { background: var(--surface-1); border: 1px solid var(--bord); border-radius: var(--r-carte); padding: var(--e4); scroll-margin-top: calc(var(--haut-entete) + 12px); }
+.chapitre.en-cours { border-color: rgba(76, 196, 127, .55); background: linear-gradient(180deg, rgba(76, 196, 127, .08), var(--surface-1) 45%); }
+.chapitre h3 { color: var(--texte); font-size: 1.0625rem; font-weight: 750; letter-spacing: -.01em; margin: 0 0 var(--e3); display: flex; align-items: center; gap: var(--e3); }
+.pastille-num { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-3); display: grid; place-items: center; font-size: .8125rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chapitre.en-cours .pastille-num { background: var(--accent); color: var(--accent-texte); }
+.nom-chapitre { flex: 1; min-width: 0; }
+.compte { flex: none; color: var(--texte-2); font-size: .75rem; font-weight: 600; }
 .chapitre p { margin: 0 0 var(--e3); font-size: 1.0625rem; line-height: 1.65; overflow-wrap: anywhere; }
-.chapitre .sources { margin: var(--e4) 0 0; padding: var(--e3) 0 0; border-top: 1px solid var(--bord); list-style: none; display: grid; gap: var(--e1); }
-.chapitre .sources h4 { margin: 0 0 var(--e1); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--texte-2); font-weight: 700; }
-.source { display: flex; align-items: center; gap: var(--e3); min-height: 52px; padding: var(--e2) var(--e3); border-radius: var(--r-champ); background: var(--surface-2); text-decoration: none; color: var(--texte); overflow-wrap: anywhere; }
-a.source:active { background: var(--surface-3); }
-.source .mono { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-doux); color: var(--accent-clair); font-weight: 800; font-size: .875rem; text-transform: uppercase; }
-.source .corps { flex: 1; min-width: 0; display: grid; }
-.source .titre { font-weight: 600; line-height: 1.3; }
-.source .site { color: var(--texte-2); font-size: .8125rem; }
-.source .ico { width: 18px; height: 18px; color: var(--texte-2); }
+.chapitre .sources { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--e2); }
+.source { display: flex; align-items: center; gap: var(--e3); min-height: 64px; padding: var(--e3); border-radius: 16px; background: var(--surface-2); border: 1px solid var(--bord); text-decoration: none; color: var(--texte); overflow-wrap: anywhere; transition: transform .12s, background .15s; }
+a.source:active { background: var(--surface-3); transform: scale(.985); }
+.source .mono { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; font-size: 1.0625rem; text-transform: uppercase; background: hsl(var(--teinte, 150) 42% 19%); color: hsl(var(--teinte, 150) 85% 80%); }
+.source .corps { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.source .site { color: var(--texte-2); font-size: .75rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.source .titre { font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.source > .ico { width: 18px; height: 18px; color: var(--texte-2); }
+.source.sans-lien { background: transparent; border-style: dashed; }
 .chapitre.parle p.lue { background: var(--accent-doux); border-radius: 8px; box-shadow: 0 0 0 4px var(--accent-doux); }
 
 /* ---- Archives ---- */
