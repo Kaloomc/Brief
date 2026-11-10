@@ -183,7 +183,7 @@ function creerApp({
   const etatReglages = () => ({
     ...donnees.reglages(),
     rappelPossible: true, cleRappel: rappel.clePublique(), abonnes: rappel.abonnements().length,
-    voix: { prete: voix.etat.prete, installation: voix.etat.installation, erreur: voix.etat.erreur, moteur: voix.etat.moteur, essaiMs: voix.etat.essaiMs ?? null },
+    voix: { prete: voix.etat.prete, installation: voix.etat.installation, erreur: voix.etat.erreur, moteur: voix.etat.moteur, essaiMs: voix.etat.essaiMs ?? null, moteurs: voix.etat.moteurs },
     mode, urlPublique,
   });
   app.get('/api/reglages', (req, res) => res.json(etatReglages()));
@@ -223,10 +223,10 @@ if (require.main === module) {
   if (!process.env.URL_PUBLIQUE) console.warn(`URL_PUBLIQUE manquant : l'adresse écrite dans « Audio (URL) » sera http://localhost:${PORT}/audio/…`);
 
   s.audio.oublierAbandons();
-  if (s.voix.config.auto || s.voix.piperPresent()) s.voix.installer(); // télécharge Piper et la voix la première fois, sans bloquer le serveur
+  if (s.voix.config.auto || s.voix.installee()) s.voix.installer(); // télécharge Piper et la voix la première fois, sans bloquer le serveur
   // Vérification de la base Notion : toutes les 10 minutes de 6 h 30 à 10 h, puis toutes les heures.
   planificateur.demarrer(async () => {
-    if (!s.voix.etat.prete && !s.voix.etat.installation && (s.voix.config.auto || s.voix.piperPresent())) await s.voix.installer();
+    if (!s.voix.etat.prete && !s.voix.etat.installation && (s.voix.config.auto || s.voix.installee())) await s.voix.installer();
     if (s.voix.etat.installation) return;
     await s.audio.verifier();
   });

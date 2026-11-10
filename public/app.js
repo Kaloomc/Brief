@@ -18,6 +18,18 @@ function h(tag, props, ...enfants) {
 }
 const vider = (el) => el.replaceChildren();
 
+// Icône du jeu de symboles du index.html (jamais d'émoji) : icone('check') → <svg><use href="#i-check"/></svg>
+const SVG = 'http://www.w3.org/2000/svg';
+function icone(nom) {
+  const svg = document.createElementNS(SVG, 'svg');
+  svg.setAttribute('class', 'ico');
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS(SVG, 'use');
+  use.setAttribute('href', `#i-${nom}`);
+  svg.append(use);
+  return svg;
+}
+
 // --- Réseau ---------------------------------------------------------------------------------------
 async function api(url, { method = 'GET', body } = {}) {
   const res = await fetch(url, {
@@ -69,31 +81,55 @@ function route() {
   return { nom: 'lecteur', date: null, onglet: 'aujourdhui' };
 }
 
+let premiereVue = true;
 async function afficher() {
   clearTimeout(minuteurAttente);
   const r = route();
   for (const s of document.querySelectorAll('main > section')) s.classList.toggle('active', s.id === r.nom);
-  for (const a of document.querySelectorAll('nav a')) a.classList.toggle('actif', a.dataset.onglet === r.onglet);
+  for (const a of document.querySelectorAll('nav a')) {
+    a.classList.toggle('actif', a.dataset.onglet === r.onglet);
+    if (a.dataset.onglet === r.onglet) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  }
   document.querySelector('nav').hidden = r.nom === 'connexion';
-  $('#titre-ecran').textContent = { lecteur: r.date ? 'Brief' : 'Aujourd’hui', archives: 'Archives', reglages: 'Réglages', connexion: 'Brief' }[r.nom];
+  const titre = { lecteur: r.date ? 'Brief' : 'Aujourd’hui', archives: 'Archives', reglages: 'Réglages', connexion: 'Brief' }[r.nom];
+  $('#titre-ecran').textContent = titre;
+  document.title = r.nom === 'connexion' || titre === 'Brief' ? 'Brief' : `${titre} · Brief`;
   $('#retour-archives').hidden = !r.date;
   majMini();
   window.scrollTo(0, 0);
+  if (!premiereVue) $('#titre-ecran').focus({ preventScroll: true }); // les lecteurs d'écran annoncent le nouvel écran
+  premiereVue = false;
+  if (r.nom === 'lecteur') chargement(true);
   try {
     if (r.nom === 'lecteur') await ouvrirLecteur(r.date);
     else if (r.nom === 'archives') await ouvrirArchives();
     else if (r.nom === 'reglages') await ouvrirReglages();
   } catch (err) {
-    if (err.message !== 'Connexion nécessaire') montrerEtat('Impossible de charger', `${err.message}. Vérifie ta connexion : le dernier brief déjà ouvert reste lisible hors ligne.`, { erreur: true });
+    if (err.message !== 'Connexion nécessaire') {
+      const hors = !navigator.onLine;
+      montrerEtat(hors ? 'Pas de réseau' : 'Impossible de charger', `${err.message}. Le dernier brief déjà ouvert reste lisible hors ligne.`, { erreur: true, bouton: 'Réessayer', action: afficher, icone: 'alert' });
+      if (r.nom === 'archives') $('#archives-etat').hidden = true;
+    }
+  } finally {
+    chargement(false);
   }
 }
 window.addEventListener('hashchange', afficher);
+window.addEventListener('online', () => { if (route().nom === 'lecteur' && !$('#etat-brief').hidden) afficher(); });
 
 // --- Écran « lecteur » ----------------------------------------------------------------------------
-function montrerEtat(titre, texte, { bouton, action, erreur } = {}) {
+// Squelette pendant le chargement du lecteur (jamais un écran vide).
+function chargement(actif) {
+  const sq = $('#squelette');
+  sq.hidden = !(actif && $('#carte-lecteur').hidden);
+}
+
+function montrerEtat(titre, texte, { bouton, action, erreur, icone: ic } = {}) {
   $('#carte-lecteur').hidden = true;
+  $('#squelette').hidden = true;
   vider($('#textes'));
   const e = $('#etat-brief');
+  $('#etat-icone').setAttribute('href', `#i-${ic || (erreur ? 'alert' : 'sunrise')}`);
   e.hidden = false;
   e.classList.toggle('erreur', !!erreur);
   $('#etat-titre').textContent = titre;
@@ -151,7 +187,11 @@ function dessinerBrief() {
   $('#brief-date').textContent = dateLongue(b.date);
   $('#brief-titre').textContent = b.titre;
   const nb = b.chapitres.length;
-  $('#brief-infos').textContent = [minutes(b.dureeMin), nb ? `${nb} chapitre${nb > 1 ? 's' : ''}` : null, b.perime ? 'liste non actualisée' : null].filter(Boolean).join(' · ');
+  const infos = $('#brief-infos');
+  vider(infos);
+  if (b.dureeMin != null) infos.append(h('span', { class: 'puce' }, icone('clock'), minutes(b.dureeMin)));
+  if (nb) infos.append(h('span', { class: 'puce' }, icone(b.audio ? 'headphones' : 'file'), `${nb} chapitre${nb > 1 ? 's' : ''}`));
+  if (b.perime) infos.append(h('span', { class: 'puce' }, icone('alert'), 'liste non actualisée'));
 
   // Messages d'état (le texte reste toujours lisible en dessous)
   const nonPret = !b.audio;
@@ -174,7 +214,8 @@ function dessinerBrief() {
   vider(ol);
   b.chapitres.forEach((c, i) => {
     const nom = h('span', { class: 'nom', texte: c.titre });
-    const contenu = [h('span', { class: 'num', texte: String(i + 1) }), nom, c.audio ? h('span', { class: 'duree', texte: temps(c.audio.duree) }) : null];
+    const num = h('span', { class: 'num' }, h('span', { class: 'txt', texte: String(i + 1) }), h('span', { class: 'eq', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')));
+    const contenu = [num, nom, c.audio ? h('span', { class: 'duree', texte: temps(c.audio.duree) }) : null];
     const bouton = h('button', { type: 'button', 'data-i': i, 'aria-label': `Chapitre ${i + 1} : ${c.titre}` }, contenu);
     if (c.audio) bouton.addEventListener('click', () => sauterAuChapitre(i));
     else bouton.addEventListener('click', () => $(`#chapitre-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -190,9 +231,12 @@ function dessinerBrief() {
       const ul = h('ul', { class: 'sources' }, h('h4', { texte: 'Sources' }));
       for (const s of c.sources) {
         const url = s.url && urlSure(s.url);
-        const contenu = [h('span', { class: 'titre', texte: s.titre }), s.site ? h('span', { class: 'site', texte: s.site }) : null];
+        const monogramme = h('span', { class: 'mono', 'aria-hidden': 'true', texte: ([...(s.site || s.titre)][0] || '?') });
+        const corps = h('span', { class: 'corps' }, h('span', { class: 'titre', texte: s.titre }), s.site ? h('span', { class: 'site', texte: s.site }) : null);
         // Un appui ouvre la source dans un nouvel onglet, sans rien transmettre à la page ouverte.
-        ul.append(h('li', {}, url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, contenu) : h('span', { class: 'sans-lien' }, contenu)));
+        ul.append(h('li', {}, url
+          ? h('a', { class: 'source', href: url, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `${s.titre}${s.site ? `, ${s.site}` : ''} (s’ouvre dans un nouvel onglet)` }, monogramme, corps, icone('external'))
+          : h('span', { class: 'source' }, monogramme, corps)));
       }
       art.append(ul);
     }
@@ -232,6 +276,8 @@ function preparerAudio() {
   audio.load();
   appliquerVitesse();
   metadonneesMedia();
+  $('#hors-ligne').hidden = true;
+  memorise(info).then((ok) => { if (brief?.audioInfo === info) $('#hors-ligne').hidden = !ok; }).catch(() => {});
   if (brief.date === (brief.maintenant && brief.maintenant.date)) memoriserAudio(info).catch(() => {});
 }
 
@@ -254,6 +300,7 @@ function appliquerVitesse() {
   audio.defaultPlaybackRate = reglages.vitesse; // iOS remet la vitesse à 1 à chaque nouveau fichier : on la redonne
   audio.playbackRate = reglages.vitesse;
   $('#vitesse').textContent = vitesseTexte(reglages.vitesse);
+  $('#vitesse').setAttribute('aria-label', `Vitesse de lecture : ${vitesseTexte(reglages.vitesse)}. Appuie pour changer.`);
 }
 
 async function lire() {
@@ -311,7 +358,16 @@ $('#vitesse').addEventListener('click', async () => {
 // Barre de progression : on déplace la tête de lecture seulement au relâchement (pas de saccades pendant le glissement).
 const barre = $('#barre');
 let glisse = false;
-barre.addEventListener('input', () => { glisse = true; $('#temps-courant').textContent = temps(barre.value / 1000 * (audio.duration || 0)); });
+function majBarre(t, d) {
+  barre.style.setProperty('--p', String(d > 0 ? t / d : 0));
+  barre.setAttribute('aria-valuetext', `${temps(t)} sur ${temps(d)}`);
+}
+barre.addEventListener('input', () => {
+  glisse = true;
+  const t = barre.value / 1000 * (audio.duration || 0);
+  $('#temps-courant').textContent = temps(t);
+  majBarre(t, audio.duration || 0);
+});
 barre.addEventListener('change', () => { if (Number.isFinite(audio.duration)) audio.currentTime = barre.value / 1000 * audio.duration; glisse = false; });
 
 function majBoutons() {
@@ -324,6 +380,7 @@ function majBoutons() {
   $('#lecture').setAttribute('aria-label', lecture ? 'Pause' : 'Lecture');
   $('#mini-lecture').setAttribute('aria-label', general ? 'Pause' : 'Lecture');
   $('#suivre').hidden = !(lecture && !suivre);
+  document.body.classList.toggle('joue', lecture); // petit égaliseur sur le chapitre en cours
 }
 
 function surbrillance() {
@@ -340,10 +397,10 @@ function surbrillance() {
 // La mini-barre : visible dès qu'un brief est chargé et que sa carte n'est plus à l'écran (ou qu'on est dans un autre onglet).
 function majMini() {
   const mini = $('#mini');
-  const actif = enCours && !!document.querySelector('#audio').src && (brief?.date === enCours || !!lsGet('brief:titre'));
+  const actif = enCours && aJoue && !!audio.src && (brief?.date === enCours || !!lsGet('brief:titre')); // seulement une fois la lecture démarrée
   const carte = $('#carte-lecteur');
   const surLecteur = route().nom === 'lecteur' && brief?.date === enCours;
-  const carteVisible = surLecteur && !carte.hidden && carte.getBoundingClientRect().bottom > 120;
+  const carteVisible = surLecteur && !carte.hidden && carteALEcran;
   mini.hidden = !(actif && !carteVisible && route().nom !== 'connexion');
   if (!mini.hidden) {
     const b = brief?.date === enCours ? brief : null;
@@ -353,7 +410,11 @@ function majMini() {
     $('#mini-texte').setAttribute('href', `#${b?.date === (b?.maintenant?.date) ? 'aujourdhui' : `brief/${enCours}`}`);
   }
 }
-window.addEventListener('scroll', () => { majMini(); }, { passive: true });
+// La carte du lecteur est-elle à l'écran ? (IntersectionObserver : aucun calcul de mise en page à chaque défilement)
+let carteALEcran = true;
+if ('IntersectionObserver' in window) {
+  new IntersectionObserver((entrees) => { carteALEcran = entrees[0].intersectionRatio > 0.25; majMini(); }, { threshold: [0, 0.25, 0.5] }).observe($('#carte-lecteur'));
+}
 // Un geste de défilement manuel suspend le suivi automatique.
 for (const ev of ['wheel', 'touchmove']) window.addEventListener(ev, () => { if (!audio.paused && suivre) { suivre = false; majBoutons(); } }, { passive: true });
 $('#suivre').addEventListener('click', () => {
@@ -371,7 +432,7 @@ audio.addEventListener('pause', () => { majBoutons(); etatMedia('paused'); sauve
 audio.addEventListener('ended', () => { majBoutons(); etatMedia('paused'); marquerEcoute(); sauverPosition(true); });
 audio.addEventListener('timeupdate', () => {
   const t = audio.currentTime, d = audio.duration;
-  if (!glisse && Number.isFinite(d) && d > 0) { barre.value = Math.round(t / d * 1000); $('#temps-courant').textContent = temps(t); }
+  if (!glisse && Number.isFinite(d) && d > 0) { barre.value = Math.round(t / d * 1000); $('#temps-courant').textContent = temps(t); majBarre(t, d); }
   if (Number.isFinite(d) && d > 0) $('#mini-progres').style.setProperty('--p', String(t / d));
   if (Number.isFinite(d) && d > 0 && !ecouteEnvoyee && t / d >= 0.9) marquerEcoute();
   const n = Date.now();
@@ -455,6 +516,7 @@ async function memoriserAudio(info) {
   const res = await fetch(cle, { credentials: 'same-origin' }); // sans « Range » : réponse complète, la seule qu'on puisse garder
   if (res.status !== 200) return;
   await cache.put(cle, res);
+  if (brief?.audioInfo && urlReseau(brief.audioInfo) === cle) $('#hors-ligne').hidden = false;
   const cles = await cache.keys();
   // On ne garde que les 3 plus récents (par date dans le nom) et une seule version par date.
   const parDate = new Map();
@@ -507,29 +569,37 @@ $('#lire-voix').addEventListener('click', () => {
 
 // --- Archives -------------------------------------------------------------------------------------
 let minuteurRecherche;
+function etatArchives(icoNom, titre, texte) {
+  const e = $('#archives-etat');
+  vider(e);
+  e.hidden = !titre;
+  if (titre) e.append(icone(icoNom), h('strong', { texte: titre }), texte ? h('span', { texte }) : null);
+}
 async function ouvrirArchives() {
   const q = $('#recherche').value.trim();
-  const etat = $('#archives-etat');
-  etat.textContent = 'Chargement…';
-  const r = await api(`/api/briefs${q ? `?q=${encodeURIComponent(q)}` : ''}`);
   const ul = $('#liste-archives');
+  if (!ul.children.length) etatArchives('wave', 'Chargement…'); // la première fois seulement : ensuite la liste reste affichée pendant la mise à jour
+  const r = await api(`/api/briefs${q ? `?q=${encodeURIComponent(q)}` : ''}`);
   vider(ul);
-  etat.textContent = r.briefs.length ? (r.perime ? 'Liste non actualisée (Notion ne répond pas).' : '') : (q ? 'Aucun brief ne correspond.' : 'Aucun brief pour le moment.');
+  if (!r.briefs.length) etatArchives('archive', q ? `Aucun brief ne contient « ${q} »` : 'Aucun brief pour le moment', q ? 'La recherche porte sur les titres et sur les textes déjà ouverts.' : 'Le premier arrive demain matin, vers 6 h 30.');
+  else etatArchives(null, r.perime ? '' : null);
+  if (r.briefs.length && r.perime) { const e = $('#archives-etat'); e.hidden = false; vider(e); e.append(icone('alert'), h('span', { texte: 'Liste non actualisée : Notion ne répond pas.' })); }
   for (const b of r.briefs) {
     const local = positionLocale(b.date);
     const ecoute = b.ecoute || local?.ecoute;
-    const droite = h('span', { class: 'droite' },
-      ecoute ? h('span', { class: 'pastille', texte: '✓ écouté' }) : null,
-      !b.audio ? h('span', { class: 'pastille neutre', texte: b.audioExpire ? 'texte seul' : 'sans audio' }) : null);
-    ul.append(h('li', {}, h('a', { href: `#brief/${b.date}` },
-      h('span', { class: 'd', texte: dateCourte(b.date) }),
-      h('span', { class: 't', texte: b.titre }), droite,
-      h('span', { class: 'm', texte: [minutes(b.dureeMin), ...(b.sujets || [])].filter(Boolean).join(' · ') }))));
+    const jour = new Date(b.date + 'T12:00:00Z');
+    const [statutIcone, statutTexte] = ecoute ? ['check', 'écouté'] : b.audio ? ['headphones', 'audio disponible'] : b.audioExpire ? ['file', 'texte seul (audio supprimé après 30 jours)'] : ['file', 'texte seul, audio en préparation'];
+    ul.append(h('li', {}, h('a', { href: `#brief/${b.date}`, 'aria-label': `${b.titre}, ${minutes(b.dureeMin) || 'durée inconnue'}, ${statutTexte}` },
+      h('span', { class: 'jour', 'aria-hidden': 'true' }, h('b', { texte: String(jour.getUTCDate()) }), h('span', { texte: MOIS[jour.getUTCMonth()].replace('.', '') })),
+      h('span', { class: 'corps' },
+        h('span', { class: 't', texte: b.titre }),
+        h('span', { class: 'm', texte: [minutes(b.dureeMin), ...(b.sujets || [])].filter(Boolean).join(' · ') })),
+      h('span', { class: `statut${ecoute ? ' ok' : ''}`, title: statutTexte }, icone(statutIcone)))));
   }
 }
 $('#recherche').addEventListener('input', () => {
   clearTimeout(minuteurRecherche);
-  minuteurRecherche = setTimeout(() => ouvrirArchives().catch((e) => { $('#archives-etat').textContent = e.message; }), 300);
+  minuteurRecherche = setTimeout(() => ouvrirArchives().catch((e) => etatArchives('alert', 'Recherche impossible', e.message)), 300);
 });
 
 // --- Réglages -------------------------------------------------------------------------------------
@@ -554,10 +624,18 @@ async function ouvrirReglages() {
   $('#rappel-heure').value = r.rappel || '07:00';
   $('#rappel-aide').textContent = 'Une notification, une fois par jour, quand l’audio du matin est prêt. Sur iPhone : il faut avoir ajouté l’appli à l’écran d’accueil (iOS 16.4 ou plus).';
   const v = r.voix;
-  $('#diagnostic').textContent = [
-    r.mode === 'demo' ? 'Mode démo : brief fictif, Notion n’est pas relié.' : 'Notion est relié.',
-    v.prete ? `Voix prête (${v.moteur}${v.essaiMs ? `, essai en ${(v.essaiMs / 1000).toFixed(1).replace('.', ',')} s` : ''}).` : v.installation ? 'Voix en cours d’installation (première fois : quelques minutes).' : `Voix indisponible : ${v.erreur || 'pas encore vérifiée'}.`,
-  ].join(' ');
+  const lignes = [
+    [r.mode === 'demo' ? 'ko' : 'ok', r.mode === 'demo' ? 'Mode démo : brief fictif, Notion n’est pas relié.' : 'Notion est relié.'],
+  ];
+  for (const m of v.moteurs?.length ? v.moteurs : [{ libelle: v.moteur, prete: v.prete, erreur: v.erreur }]) {
+    const essai = m.prete && v.essaiMs && (v.moteurs?.length || 1) === 1 ? `, essai en ${(v.essaiMs / 1000).toFixed(1).replace('.', ',')} s` : '';
+    lignes.push(m.prete ? ['ok', `Voix prête : ${m.libelle}${m.enLigne ? ' (en ligne)' : ''}${essai}.`]
+      : v.installation ? ['', `Voix en cours d’installation : ${m.libelle} (la première fois, quelques minutes).`]
+      : ['ko', `Voix indisponible : ${m.libelle}${m.erreur ? ` — ${m.erreur}` : ''}.`]);
+  }
+  const ul = $('#diagnostic');
+  vider(ul);
+  for (const [classe, texte] of lignes) ul.append(h('li', { class: classe, texte }));
   $('#badge-mode').hidden = r.mode !== 'demo';
   window.cleRappel = r.cleRappel;
 }

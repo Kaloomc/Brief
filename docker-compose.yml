@@ -1,8 +1,8 @@
 # À coller dans Container Manager → Projet → Créer (voir docs/MISE-EN-LIGNE.md).
-# Au démarrage : installe git et ffmpeg (la première fois), clone ou met à jour le dépôt GitHub, installe et lance le serveur.
+# Au démarrage : installe git et ffmpeg (la première fois) ; python3 seulement si VOIX_MOTEUR contient kokoro, et sans bloquer le démarrage s'il échoue, clone ou met à jour le dépôt GitHub, installe et lance le serveur.
 # Pour déployer une nouvelle version : pousser sur GitHub, puis redémarrer le projet.
 # Si la nouvelle version échoue aux tests (npm test), l'ancienne est remise et démarre à sa place.
-# Au premier lancement, l'appli télécharge elle-même la voix française (Piper, environ 115 Mo) dans /docker/brief/app/data.
+# Au premier lancement, l'appli télécharge elle-même la voix française (Piper, environ 150 Mo) dans /docker/brief/app/data.
 # Les fichiers audio (30 jours), les textes en cache et la progression d'écoute sont dans /docker/brief/app/data (jamais envoyés sur GitHub).
 # Image Debian (et non Alpine) : Piper, la voix, a besoin de la bibliothèque glibc.
 services:
@@ -26,14 +26,25 @@ services:
       - URL_PUBLIQUE=https://teranga-nas.synology.me:8447
       # Widget iPhone (facultatif) : long jeton aléatoire (32 caractères au minimum) ; vide = widget désactivé.
       - WIDGET_TOKEN=
-      # Voix Piper (facultatif) : fr_FR-siwis-medium (par défaut), fr_FR-upmc-medium, fr_FR-tom-medium ou fr_FR-siwis-low (plus rapide, moins fine).
-      # - VOIX_MODELE=fr_FR-siwis-medium
+      # --- La voix (facultatif ; rien à régler pour la voix locale par défaut) ---
+      # Moteur : piper (par défaut, local, léger), kokoro (local, plus lourd) ou azure (EN LIGNE, clé d'API : voir README, « La voix »).
+      # Une liste donne l'ordre de repli : azure,piper = Azure, et Piper si Azure échoue.
+      # - VOIX_MOTEUR=piper
+      # Piper : voix fr_FR-upmc-medium (par défaut), fr_FR-siwis-medium, fr_FR-tom-medium, fr_FR-mls-medium, fr_FR-gilles-low ;
+      # VOIX_LOCUTEUR : 1 = voix d'homme, 0 = voix de femme (pour upmc).
+      # - VOIX_MODELE=fr_FR-upmc-medium
+      # - VOIX_LOCUTEUR=1
+      # Azure (seulement avec VOIX_MOTEUR=azure) : le texte des chapitres part chez Microsoft. Jamais la clé dans GitHub.
+      # - AZURE_SPEECH_KEY=
+      # - AZURE_SPEECH_REGION=francecentral
+      # - AZURE_VOIX=fr-FR-VivienneMultilingualNeural
     volumes:
       - ./app:/app
     working_dir: /app
     command: >
       sh -c "(command -v git >/dev/null && command -v ffmpeg >/dev/null ||
               (apt-get update && apt-get install -y --no-install-recommends git ffmpeg ca-certificates && apt-get clean)) &&
+             case x$$VOIX_MOTEUR in *kokoro*) command -v python3 >/dev/null || (apt-get update && apt-get install -y --no-install-recommends python3 python3-venv && apt-get clean) || true;; esac &&
              git config --global --add safe.directory /app &&
              if [ -d /app/.git ]; then
                AVANT=$$(git rev-parse HEAD);

@@ -52,15 +52,17 @@ La base **« Brief du matin »** est dans la page **« Gestion »**, comme « Pr
    - `URL_PUBLIQUE=` déjà rempli (`https://teranga-nas.synology.me:8447`) : c'est l'adresse écrite dans `Audio (URL)`.
 4. **Suivant** → (pas besoin de Web Station) → **Terminé**. Le projet démarre.
 5. Vérifie : **Conteneur** → `brief` → **Journal**. Au **premier démarrage** (compte 3 à 5 minutes) tu verras :
-   - l'installation de `git` et `ffmpeg` (l'image est Debian, pas Alpine : la voix en a besoin) ;
-   - `Téléchargement : …piper_linux_x86_64.tar.gz` puis `…fr_FR-siwis-medium.onnx` (environ 115 Mo, dans `/docker/brief/app/data`) ;
-   - `Voix prête : Piper fr_FR-siwis-medium`, puis à la fin `Brief sur http://localhost:3014 (Notion activé)`.
+   - l'installation de `git` et `ffmpeg` (l'image est Debian, pas Alpine : la voix Piper a besoin de glibc) ; `python3` seulement si tu choisis la voix Kokoro, et sans bloquer le démarrage s'il échoue ;
+   - `Téléchargement : …piper_linux_x86_64.tar.gz` puis `…fr_FR-upmc-medium.onnx` (environ 150 Mo en tout, dans `/docker/brief/app/data`) ;
+   - `Voix prête : Piper fr_FR-upmc-medium (voix 1)`, puis à la fin `Brief sur http://localhost:3014 (Notion activé)`.
    Si tu vois `APP_PASSWORD manquant`, le mot de passe n'est pas rempli. Si tu vois `Voix indisponible : …`, voir le dépannage.
    Aux démarrages suivants, ça prend quelques secondes.
 
 Test sur le réseau de la maison : http://192.168.1.45:3014 (onglet **Réglages** → « Sur le serveur » : il doit indiquer *Voix prête* et le temps de la phrase d'essai).
 
-**Vérifier que le NAS est assez rapide** : dans Notion, la tâche Claude écrit le brief à 6 h 21 ; à 6 h 30 Brief le voit et fabrique l'audio. Pour essayer tout de suite, remets le `Statut` d'un brief à « Script prêt » dans Notion (et vide `Audio (URL)`) : à la prochaine vérification (toutes les 10 minutes le matin, toutes les heures ensuite, ou au redémarrage du projet) l'audio est refait, et le Journal indique `audio prêt (… s, 4 chapitres)`. Si la fabrication dépasse 10 minutes, passe à la voix plus légère : ajoute `- VOIX_MODELE=fr_FR-siwis-low` dans le YAML.
+**Vérifier que le NAS est assez rapide** : dans Notion, la tâche Claude écrit le brief à 6 h 21 ; à 6 h 30 Brief le voit et fabrique l'audio. Pour essayer tout de suite, remets le `Statut` d'un brief à « Script prêt » dans Notion (et vide `Audio (URL)`) : à la prochaine vérification (toutes les 10 minutes le matin, toutes les heures ensuite, ou au redémarrage du projet) l'audio est refait, et le Journal indique `audio prêt (… s, 4 chapitres)`. Si la fabrication dépasse 10 minutes, passe à une voix plus légère : `- VOIX_MODELE=fr_FR-gilles-low` dans le YAML.
+
+**Changer de voix** (voir le README, « La voix », et `docs/VOIX.md`) : dans le YAML, `VOIX_LOCUTEUR=0` (voix de femme, upmc), `VOIX_MODELE=fr_FR-siwis-medium` ou `fr_FR-tom-medium`, `VOIX_MOTEUR=kokoro` (plus naturelle selon les goûts, 7 fois plus lente), ou `VOIX_MOTEUR=azure,piper` avec `AZURE_SPEECH_KEY` et `AZURE_SPEECH_REGION` (voix en ligne, **le texte de tes briefs part chez Microsoft**, Piper en secours). Arrête, modifie, démarre : le brief du jour est refait en remettant son `Statut` à « Script prêt ».
 
 Les fichiers de Brief sont dans `/docker/brief/app/data` (audio des 30 derniers jours, textes en cache, progression d'écoute). Rien d'irremplaçable : le texte est dans Notion, et l'audio se refait. Tu peux quand même inclure `/docker/brief` dans Hyper Backup.
 
@@ -149,7 +151,10 @@ Pour changer le mot de passe ou un jeton : **Projet** → `brief` → **Arrêter
 | `Voix indisponible : Processeur non géré` | Processeur ni x86_64 ni ARM 64 bits |
 | « Audio indisponible » dans l'appli | La voix a échoué 3 fois : lis le message, corrige, puis **Réessayer l'audio** |
 | « Audio en préparation » qui dure | Prochaine vérification dans 10 minutes au plus ; vérifie que `Statut` = « Script prêt » dans Notion |
-| L'audio est trop lent à fabriquer | `VOIX_MODELE=fr_FR-siwis-low` dans le YAML |
+| L'audio est trop lent à fabriquer | `VOIX_MODELE=fr_FR-gilles-low` dans le YAML, ou `VOIX_MOTEUR=piper` si tu avais mis `kokoro` |
+| `Voix indisponible … Phonemes must be one codepoint` | Une voix Piper réentraînée a été téléchargée : redémarre, Brief la refait à la bonne révision |
+| `Voix indisponible (Azure …) : 401` | Clé ou région Azure refusée : vérifie `AZURE_SPEECH_KEY` et `AZURE_SPEECH_REGION` (par exemple `francecentral`) |
+| `Voix indisponible (Kokoro …)` | `python3` ou `python3-venv` manque, ou le téléchargement du modèle (environ 350 Mo) a échoué : vois le Journal |
 | `Audio (URL)` ouvre l'écran de connexion | Normal : l'audio est protégé par le mot de passe de l'appli (connecte-toi d'abord) |
 | La page ne s'ouvre pas depuis la 4G | Redirection Freebox (étape 6) ou pare-feu DSM |
 | Avertissement de certificat | Étape 5 : le certificat n'est pas associé au port 8447 |

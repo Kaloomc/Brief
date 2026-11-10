@@ -13,7 +13,11 @@ const { analyserMarkdown, analyserNotion } = require('./parseur');
 const { parisDe, ajouterJours, dateValide, dateLisible } = require('./temps');
 const { prochaineVerification } = require('./planificateur');
 const { creerApp } = require('./server');
-const { creerVoix, urlVoix } = require('./voix');
+const { creerVoix } = require('./voix');
+const { urlVoix, modeleCompatible } = require('./moteurs/piper');
+const azure = require('./moteurs/azure');
+const { preparer, nombreEnLettres, ordinal } = require('./prononciation');
+const { configuration } = require('./voix');
 const { limiteur } = require('./widget');
 const demo = require('./demo');
 
@@ -640,8 +644,9 @@ test('rappel : jeton VAPID valide, une seule notification par jour, abonnement p
 
 // --- Voix : outils ---------------------------------------------------------------------------------------------------
 
-test('voix : adresse de la voix française Piper', () => {
-  assert.strictEqual(urlVoix('fr_FR-siwis-medium'), 'https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium');
+test('voix : adresse de la voix Piper, épinglée sur une révision (jamais « main »)', () => {
+  assert.strictEqual(urlVoix('fr_FR-siwis-medium'), 'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/fr/fr_FR/siwis/medium/fr_FR-siwis-medium');
+  assert.ok(!urlVoix('fr_FR-upmc-medium').includes('/main/'));
 });
 
 test('mode démo : la base fictive suit la même interface que Notion', async () => {
@@ -651,4 +656,152 @@ test('mode démo : la base fictive suit la même interface que Notion', async ()
   const corps = await d.lireCorps(l[0].id);
   assert.ok(analyserNotion([]).chapitres.length === 0 && corps.length > 5);
   assert.strictEqual(d.actif(), false);
+});
+
+// --- Prononciation (chiffres, heures, ordinaux, sigles, mots anglais) -----------------------------------------------------
+
+test('prononciation : nombres en lettres', () => {
+  const cas = { 0: 'zéro', 21: 'vingt et un', 71: 'soixante et onze', 80: 'quatre-vingts', 81: 'quatre-vingt-un', 99: 'quatre-vingt-dix-neuf', 200: 'deux cents', 201: 'deux cent un',
+    1000: 'mille', 2026: 'deux mille vingt-six', 80000: 'quatre-vingt mille', 1250000: 'un million deux cent cinquante mille', 3000000000: 'trois milliards' };
+  for (const [n, mots] of Object.entries(cas)) assert.strictEqual(nombreEnLettres(Number(n)), mots, n);
+  assert.deepStrictEqual([1, 2, 3, 4, 5, 9, 21, 100].map((n) => ordinal(n)), ['premier', 'deuxième', 'troisième', 'quatrième', 'cinquième', 'neuvième', 'vingt et unième', 'centième']);
+});
+
+test('prononciation : heures, ordinaux, unités et décimaux', () => {
+  assert.strictEqual(preparer('Rendez-vous à 7 h 30, puis à 21 h et à 9h05.'), 'Rendez-vous à sept heures trente, puis à vingt et une heures et à neuf heures cinq.');
+  assert.strictEqual(preparer('Le 1er mai, le 2e étage, la 3ème fois, le XXIe siècle.'), 'Le premier mai, le deuxième étage, la troisième fois, le vingt et unième siècle.');
+  assert.strictEqual(preparer('Il roule à 3 km/h avec 12 Go et 2,5 kg, soit 3,05 de plus.'), 'Il roule à trois kilomètres-heure avec douze gigaoctets et deux virgule cinq kilos, soit trois virgule zéro cinq de plus.');
+  assert.strictEqual(preparer('1 250 000 euros en 2025'), 'un million deux cent cinquante mille euros en deux mille vingt-cinq');
+  assert.strictEqual(preparer('Le PSG, Le Monde, Louis XIV et la IIe guerre.'), 'Le PSG, Le Monde, Louis XIV et la deuxième guerre.', '« Le » n\'est pas un chiffre romain');
+  assert.strictEqual(preparer('GPT-4 et F1, 4K'), 'Djé Pé Té-4 et F1, 4K', 'les chiffres collés à des lettres ne sont pas touchés');
+});
+
+test('prononciation : sigles et mots anglais écrits comme ils se prononcent, dictionnaire perso prioritaire', () => {
+  assert.strictEqual(preparer('Sur ton iPhone, l’IA de Gemini.'), 'Sur ton aïfone, l’I A de Djémini.');
+  assert.strictEqual(preparer('Pia et Time restent tels quels, mais Ocarina of Time change.'), 'Pia et Time restent tels quels, mais Okarina ove Taïme change.');
+  assert.strictEqual(preparer('Le Zelda de Nintendo', { Zelda: 'Zeldà' }), 'Le Zeldà de Ninetendo');
+  assert.strictEqual(preparer('iPhone et Gemini', null, { dictionnaire: false }), 'iPhone et Gemini', 'les voix en ligne n\'ont pas besoin du dictionnaire');
+  assert.strictEqual(preparer('non ; oui (peut-être) fin'), 'non, oui, peut-être, fin');
+});
+
+// --- Moteurs de voix ------------------------------------------------------------------------------------------------------
+
+test('voix : VOIX_MOTEUR choisit le moteur ; plusieurs moteurs = repli dans l\'ordre', () => {
+  assert.deepStrictEqual(configuration({}).chaine, ['piper']);
+  assert.deepStrictEqual(configuration({ VOIX_MOTEUR: 'azure,piper' }).chaine, ['azure', 'piper']);
+  assert.deepStrictEqual(configuration({ VOIX_MOTEUR: ' Kokoro ' }).chaine, ['kokoro']);
+  const c = configuration({ VOIX_MOTEUR: 'inconnu' });
+  assert.deepStrictEqual([c.chaine, c.inconnus], [['piper'], ['inconnu']]);
+});
+
+test('voix : une voix réentraînée pour un autre moteur est détectée (Piper 2023 plante dessus)', () => {
+  const d = tmp();
+  const f = path.join(d, 'v.onnx.json');
+  fs.writeFileSync(f, JSON.stringify({ phoneme_id_map: { a: [1], 'b': [2] } }));
+  assert.strictEqual(modeleCompatible(f), true);
+  fs.writeFileSync(f, JSON.stringify({ phoneme_id_map: { a: [1], 'aɪ': [2] } }));
+  assert.strictEqual(modeleCompatible(f), false);
+  assert.strictEqual(modeleCompatible(path.join(d, 'absent.json')), false);
+});
+
+test('voix : si le premier moteur échoue, tout le brief est refait avec le suivant', { skip: !ffmpegOk }, async () => {
+  const d = tmp();
+  const voix = creerVoix(d, { env: { VOIX_MOTEUR: 'azure,piper' }, journal: () => {} });
+  const vus = [];
+  const bonne = fausseVoix();
+  voix.moteurs[0].synthetiser = async (t, w) => { vus.push(['azure', t]); if (vus.length > 1) throw new Error('quota dépassé'); await bonne(t, w); };
+  voix.moteurs[1].synthetiser = async (t, w) => { vus.push(['piper', t]); await bonne(t, w); };
+  const m = await voix.fabriquer({ date: '2026-11-05', chapitres: [{ titre: 'A', voix: 'Bonjour, iPhone.' }, { titre: 'B', voix: 'Deuxième chapitre.' }], dossierAudio: path.join(d, 'audio') });
+  assert.deepStrictEqual(vus.map((v) => v[0]), ['azure', 'azure', 'piper', 'piper'], 'les deux chapitres refaits avec Piper : jamais deux voix dans un brief');
+  assert.match(m.voix, /Piper/);
+  assert.strictEqual(vus[0][1], 'Bonjour, iPhone.', 'Azure reçoit le texte sans respelling');
+  assert.match(vus[2][1], /aïfone/, 'Piper reçoit les sigles et mots anglais écrits à la française');
+  assert.ok(fs.existsSync(path.join(d, 'audio', '2026-11-05.mp3')) && fs.existsSync(path.join(d, 'audio', '2026-11-05.json')));
+  // tout échoue : l'erreur remonte (audio.js la transforme en message lisible)
+  voix.moteurs[1].synthetiser = async () => { throw new Error('Piper plante'); };
+  await assert.rejects(voix.fabriquer({ date: '2026-11-06', chapitres: [{ titre: 'A', voix: 'x' }], dossierAudio: path.join(d, 'audio') }), /Piper plante/);
+  assert.ok(!fs.existsSync(path.join(d, 'audio', '2026-11-06.mp3')));
+});
+
+test('azure : SSML sûr, clé jamais dans les erreurs, repli possible, rien d\'envoyé sans configuration', async () => {
+  const ssml = azure.construireSsml('Il a dit "oui" & <script>x</script>.\nDeuxième phrase.', 'fr-FR-VivienneMultilingualNeural', 1);
+  assert.ok(ssml.includes('&amp;') && ssml.includes('&lt;script&gt;') && ssml.includes('&quot;oui&quot;'));
+  assert.ok(!ssml.includes('<script>'));
+  assert.ok(ssml.includes('<break time="300ms"/>') && ssml.includes('name="fr-FR-VivienneMultilingualNeural"'));
+  assert.deepStrictEqual(azure.decouper('a\n'.repeat(3000)).map((m) => m.length < 3600), [true, true]);
+
+  const appels = [];
+  const faux = (statut) => async (url, opts) => { appels.push({ url, opts }); return { ok: statut === 200, status: statut, arrayBuffer: async () => new ArrayBuffer(8), text: async () => 'clé ' + opts.headers['Ocp-Apim-Subscription-Key'] + ' refusée' }; };
+  const d = tmp();
+  const sans = azure.creer({ dossierDonnees: d, env: {}, journal: () => {}, fetchImpl: faux(200) });
+  await assert.rejects(sans.synthetiser('Bonjour.', path.join(d, 'x.wav')), /manquant/);
+  assert.strictEqual(appels.length, 0, 'sans clé, rien ne part');
+
+  const env = { AZURE_SPEECH_KEY: 'cle-secrete-123', AZURE_SPEECH_REGION: 'francecentral' };
+  const bon = azure.creer({ dossierDonnees: d, env, journal: () => {}, fetchImpl: faux(200) });
+  await bon.synthetiser('Bonjour.', path.join(d, 'ok.wav'));
+  assert.strictEqual(appels[0].url, 'https://francecentral.tts.speech.microsoft.com/cognitiveservices/v1');
+  assert.strictEqual(appels[0].opts.headers['X-Microsoft-OutputFormat'], 'riff-24khz-16bit-mono-pcm');
+  assert.ok(fs.existsSync(path.join(d, 'ok.wav')));
+
+  const refuse = azure.creer({ dossierDonnees: d, env, journal: () => {}, fetchImpl: faux(401) });
+  const err = await refuse.synthetiser('Bonjour.', path.join(d, 'non.wav')).catch((e) => e);
+  assert.match(err.message, /401/);
+  assert.ok(!err.message.includes('cle-secrete-123'), 'la clé n\'apparaît jamais dans un message d\'erreur');
+  assert.strictEqual(appels.length, 2, 'une clé refusée n\'est pas réessayée');
+});
+
+// --- Interface : pas d'émojis, accessibilité de base ----------------------------------------------------------------------
+
+test('interface : aucun émoji ni symbole-émoji (icônes SVG partout)', () => {
+  const emoji = /[\p{Extended_Pictographic}\u{FE0F}\u{1F1E6}-\u{1F1FF}\u2713\u2714\u2190-\u2193\u23EE\u23ED]/u;
+  for (const f of ['index.html', 'app.js', 'style.css', 'sw.js', 'manifest.json']) {
+    const texte = fs.readFileSync(path.join(__dirname, 'public', f), 'utf8');
+    const trouve = texte.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => emoji.test(l.replace(/\/\/.*$/, ''))).map(([i, l]) => `${f}:${i} ${l.trim().slice(0, 60)}`);
+    assert.deepStrictEqual(trouve, [], 'émoji trouvé');
+  }
+});
+
+test('interface : chaque bouton a un nom, les icônes sont décoratives, pas de style en ligne (CSP)', () => {
+  const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8').replace(/<svg class="sprite"[\s\S]*?<\/svg>\s*<a class="evitement"/, '<a class="evitement"');
+  for (const [, attrs, contenu] of html.matchAll(/<button([^>]*)>([\s\S]*?)<\/button>/g)) {
+    const texte = contenu.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '').trim();
+    assert.ok(/aria-label=/.test(attrs) || texte || /\shidden/.test(attrs), `bouton sans nom : ${attrs}`); // (un bouton caché reçoit son texte du script)
+  }
+  for (const svg of html.matchAll(/<svg(?![^>]*sprite)([^>]*)>/g)) assert.match(svg[1], /aria-hidden="true"|class="ico"/, `icône non décorative : ${svg[0]}`);
+  assert.ok(!/\sstyle="/.test(html), 'attribut style en ligne : bloqué par la politique de sécurité');
+  assert.match(html, /<html lang="fr">/);
+  assert.match(html, /<nav aria-label=/);
+});
+
+test('voix : la voix par défaut change, mais sans accès à Internet on garde la voix Piper déjà installée', { skip: !ffmpegOk }, async () => {
+  const d = tmp();
+  const dossierPiper = path.join(d, 'piper');
+  fs.mkdirSync(path.join(dossierPiper, 'piper'), { recursive: true });
+  // Faux « piper » : un script qui écrit un son de test dans le fichier demandé.
+  const faux = path.join(dossierPiper, 'piper', 'piper');
+  fs.writeFileSync(faux, '#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = "--output_file" ] && S="$2"; shift; done\ncat >/dev/null\nexec ffmpeg -v error -y -f lavfi -i sine=frequency=440:duration=0.6 -ac 1 "$S"\n');
+  fs.chmodSync(faux, 0o755);
+  fs.mkdirSync(path.join(d, 'voix'));
+  fs.writeFileSync(path.join(d, 'voix', 'fr_FR-siwis-medium.onnx'), 'x');
+  fs.writeFileSync(path.join(d, 'voix', 'fr_FR-siwis-medium.onnx.json'), JSON.stringify({ phoneme_id_map: { a: [1] } }));
+  fs.writeFileSync(path.join(d, 'voix', 'fr_FR-gilles-low.onnx'), 'x'); // incompatible : jamais choisie
+  fs.writeFileSync(path.join(d, 'voix', 'fr_FR-gilles-low.onnx.json'), JSON.stringify({ phoneme_id_map: { 'aɪ': [1] } }));
+  const vraiFetch = global.fetch;
+  global.fetch = async () => { throw new Error('réseau coupé'); };
+  const journal = [];
+  try {
+    const voix = creerVoix(d, { env: { PIPER_DIR: dossierPiper }, journal: (m) => journal.push(m) });
+    await voix.installer();
+    assert.strictEqual(voix.etat.prete, true, journal.join('\n'));
+    assert.match(voix.etat.moteur, /siwis/);
+    assert.ok(journal.some((m) => /on garde la voix déjà installée/.test(m)));
+    // Une voix demandée explicitement n'est jamais remplacée en silence
+    const stricte = creerVoix(d, { env: { PIPER_DIR: dossierPiper, VOIX_MODELE: 'fr_FR-tom-medium' }, journal: () => {} });
+    await stricte.installer();
+    assert.strictEqual(stricte.etat.prete, false);
+    assert.match(stricte.etat.moteur, /tom/);
+  } finally {
+    global.fetch = vraiFetch;
+  }
 });
