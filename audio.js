@@ -81,8 +81,8 @@ function creerAudio({ donnees, notion, voix, urlPublique, journal = console.log,
     return true;
   }
 
-  async function fabriquer(brief) {
-    const t = await donnees.texte(brief, { force: true });
+  async function fabriquer(brief, { forcer = true } = {}) {
+    const t = await donnees.texte(brief, { force: forcer });
     // Ne lire que le texte parlé (sources, Markdown, adresses, émojis retirés).
     const chapitres = t.chapitres.map((c) => ({ titre: c.titre, voix: pourLaVoix(c.texte) })).filter((c) => c.voix);
     if (!chapitres.length) {
@@ -222,7 +222,45 @@ function creerAudio({ donnees, notion, voix, urlPublique, journal = console.log,
     return { etat: 'attente' };
   }
 
-  return { besoin, manifest, verifier, relancer, nettoyer, etatDe, oublierAbandons, urlAudio, fichier, dossierAudio, travail };
+  // --- Refaire des audios avec la voix actuelle ---------------------------------------------------------
+  // Pour changer de voix : les audios déjà prêts sont refaits un par un (le plus récent d'abord) sans toucher à Notion
+  // (« Audio (URL) » et « Statut » restent ce qu'ils sont). L'ancien fichier n'est remplacé qu'une fois le nouveau terminé :
+  // si la voix échoue, l'ancien audio reste lisible.
+  const lot = { enCours: false, total: 0, fait: 0 };
+
+  // Les audios gardés et la voix qui les a fabriqués.
+  function audiosGardes() {
+    let noms = [];
+    try { noms = fs.readdirSync(dossierAudio); } catch { return []; }
+    return noms.map((n) => /^(\d{4}-\d{2}-\d{2})\.json$/.exec(n)?.[1]).filter(Boolean).map((date) => ({ date, voix: manifest(date)?.voix })).filter((a) => a.voix !== undefined);
+  }
+
+  async function refaire(date) {
+    const { briefs } = await donnees.listerBriefs();
+    const limite = ajouterJours(parisDe(maintenant()).date, -JOURS_AUDIO);
+    let cibles = briefs.filter((b) => b.date >= limite && manifest(b.date));
+    if (date) {
+      if (!dateValide(date)) throw Object.assign(new Error('Date invalide.'), { status: 400 });
+      cibles = cibles.filter((b) => b.date === date);
+      if (!cibles.length) throw Object.assign(new Error('Ce brief n\'a pas d\'audio à refaire.'), { status: 404 });
+    }
+    if (lot.enCours) throw Object.assign(new Error('Des audios sont déjà en cours de fabrication.'), { status: 409 });
+    Object.assign(lot, { enCours: true, total: cibles.length, fait: 0 });
+    enfiler(async () => {
+      try {
+        for (const b of cibles) { // le plus récent d'abord (la liste est triée ainsi)
+          try { await fabriquer(b, { forcer: false }); } catch (err) { journal(`${b.date} : ${err.message}`); }
+          lot.fait++;
+        }
+      } finally {
+        lot.enCours = false;
+        travail.date = null;
+      }
+    });
+    return { ok: true, nombre: cibles.length };
+  }
+
+  return { besoin, manifest, verifier, relancer, refaire, lot, audiosGardes, nettoyer, etatDe, oublierAbandons, urlAudio, fichier, dossierAudio, travail };
 }
 
 module.exports = { creerAudio };

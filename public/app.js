@@ -636,6 +636,7 @@ async function ouvrirReglages() {
   const ul = $('#diagnostic');
   vider(ul);
   for (const [classe, texte] of lignes) ul.append(h('li', { class: classe, texte }));
+  majAudios(r);
   $('#badge-mode').hidden = r.mode !== 'demo';
   window.cleRappel = r.cleRappel;
 }
@@ -704,3 +705,27 @@ async function demarrer() {
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 demarrer();
+
+// --- Réglages : refaire les audios déjà prêts avec la voix actuelle ------------------------------------------------
+let suiviLot = null;
+function majAudios(r) {
+  const a = r.audios || { gardes: 0, autreVoix: 0, lot: {} };
+  const enCours = !!a.lot.enCours;
+  $('#audios-etat').textContent = a.gardes
+    ? `${a.gardes} audio${a.gardes > 1 ? 's' : ''} gardé${a.gardes > 1 ? 's' : ''} (30 jours), dont ${a.autreVoix} fait${a.autreVoix > 1 ? 's' : ''} avec une autre voix que « ${r.voix.moteur} ».`
+    : 'Aucun audio gardé pour le moment.';
+  const bouton = $('#refaire-audios');
+  bouton.disabled = enCours || !a.gardes || !r.voix.prete;
+  $('#audios-message').textContent = enCours ? `Fabrication en cours : ${a.lot.fait} sur ${a.lot.total}. Tu peux quitter cet écran.` : (!r.voix.prete && a.gardes ? 'La voix n’est pas prête : voir « Sur le serveur ».' : '');
+  clearTimeout(suiviLot);
+  if (enCours && route().nom === 'reglages') suiviLot = setTimeout(() => api('/api/reglages').then(majAudios).catch(() => {}), 4000);
+}
+$('#refaire-audios').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/audio/refaire', { method: 'POST', body: {} });
+    $('#audios-message').textContent = `${r.nombre} audio${r.nombre > 1 ? 's' : ''} à refaire, le plus récent d’abord.`;
+    suiviLot = setTimeout(() => api('/api/reglages').then(majAudios).catch(() => {}), 1500);
+  } catch (err) {
+    $('#audios-message').textContent = err.message;
+  }
+});

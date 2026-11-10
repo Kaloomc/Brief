@@ -805,3 +805,48 @@ test('voix : la voix par défaut change, mais sans accès à Internet on garde l
     global.fetch = vraiFetch;
   }
 });
+
+// --- Changer de voix : refaire les audios déjà prêts -----------------------------------------------------------------------
+
+test('refaire les audios avec la voix actuelle : sans toucher à Notion, l\'ancien reste lisible si ça échoue', { skip: !ffmpegOk }, async () => {
+  const b = briefTest('2026-11-05');
+  const vieux = briefTest('2026-11-04', { statut: 'Audio prêt' });
+  const s = installer([b, vieux]);
+  await s.audio.verifier(); // 05 : fabriqué avec la voix de test (ancienne voix)
+  // le brief du 04 a déjà son audio, fait « avant » : on le simule en le fabriquant à la main
+  await s.voix.fabriquer({ date: '2026-11-04', chapitres: [{ titre: 'A', voix: 'Ancien audio.' }], dossierAudio: s.audio.dossierAudio, moteur: fausseVoix(), meta: { mots: 100 } });
+  const fabriqueAvant = s.audio.manifest('2026-11-05').fabrique;
+  await new Promise((r) => setTimeout(r, 20));
+  s.notion.appels.length = 0;
+  s.log.length = 0;
+
+  const demande = await requete(s, '/api/audio/refaire', { methode: 'POST', corps: {} });
+  assert.strictEqual(demande.json.nombre, 2);
+  assert.strictEqual((await requete(s, '/api/audio/refaire', { methode: 'POST', corps: {} })).status, 409, 'pas deux lots en même temps');
+  for (let i = 0; i < 100 && s.audio.lot.enCours; i++) await new Promise((r) => setTimeout(r, 100));
+  assert.strictEqual(s.audio.lot.enCours, false);
+  assert.strictEqual(s.audio.lot.fait, 2);
+  assert.ok(s.log.length >= 5, 'la voix a relu les chapitres des deux briefs');
+  assert.ok(!s.notion.appels.some((a) => a.startsWith('ecriture') || a.startsWith('page ')), 'Notion n\'est pas touché (Statut et Audio (URL) restent)');
+  assert.notStrictEqual(s.audio.manifest('2026-11-05').fabrique, fabriqueAvant, 'audio refait');
+  assert.strictEqual(vieux.statut, 'Audio prêt');
+  // un seul brief, une date invalide, un brief sans audio
+  assert.strictEqual((await requete(s, '/api/audio/refaire', { methode: 'POST', corps: { date: '2026-11-05' } })).json.nombre, 1);
+  for (let i = 0; i < 100 && s.audio.lot.enCours; i++) await new Promise((r) => setTimeout(r, 100));
+  assert.strictEqual((await requete(s, '/api/audio/refaire', { methode: 'POST', corps: { date: '2026-11-30' } })).status, 404);
+  assert.strictEqual((await requete(s, '/api/audio/refaire', { methode: 'POST', corps: { date: 'x' } })).status, 400);
+
+  // si la nouvelle voix échoue, l'ancien audio reste en place et lisible
+  const garde = fs.readFileSync(s.audio.fichier('2026-11-05', 'mp3'));
+  const vrai = s.voix.fabriquer;
+  s.voix.fabriquer = async () => { throw new Error('voix en panne'); };
+  await requete(s, '/api/audio/refaire', { methode: 'POST', corps: { date: '2026-11-05' } });
+  for (let i = 0; i < 300 && s.audio.lot.enCours; i++) await new Promise((r) => setTimeout(r, 100));
+  s.voix.fabriquer = vrai;
+  assert.ok(fs.readFileSync(s.audio.fichier('2026-11-05', 'mp3')).equals(garde));
+  assert.strictEqual((await get(s, '/api/briefs/2026-11-05')).json.audio, true);
+  // Réglages : combien d'audios sont faits avec une autre voix
+  const r = (await get(s, '/api/reglages')).json;
+  assert.strictEqual(r.audios.gardes, 2);
+  assert.strictEqual(r.audios.autreVoix, 2, 'ils portent « voix de test », la voix actuelle est Piper');
+});

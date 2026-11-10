@@ -179,11 +179,17 @@ function creerApp({
     res.json(await audio.relancer(req.params.date));
   });
 
+  // Changer de voix : refaire les audios déjà prêts avec la voix actuelle ({ date } : un seul ; sans date : ceux des 30 derniers jours).
+  app.post('/api/audio/refaire', async (req, res) => {
+    res.json(await audio.refaire(req.body?.date));
+  });
+
   // --- Réglages et rappel ---------------------------------------------------------------------------
   const etatReglages = () => ({
     ...donnees.reglages(),
     rappelPossible: true, cleRappel: rappel.clePublique(), abonnes: rappel.abonnements().length,
     voix: { prete: voix.etat.prete, installation: voix.etat.installation, erreur: voix.etat.erreur, moteur: voix.etat.moteur, essaiMs: voix.etat.essaiMs ?? null, moteurs: voix.etat.moteurs },
+    audios: { gardes: audio.audiosGardes().length, autreVoix: audio.audiosGardes().filter((a) => a.voix !== voix.etat.moteur).length, lot: { ...audio.lot } },
     mode, urlPublique,
   });
   app.get('/api/reglages', (req, res) => res.json(etatReglages()));
