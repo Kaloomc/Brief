@@ -117,6 +117,8 @@ Menu **⋮** → **Installer l'application**.
 - Mode avion, puis ouverture de l'appli : le dernier brief (texte et sources) s'affiche ; l'audio se lit s'il a déjà été écouté ou ouvert sur ce téléphone.
 - **Rappel du matin** (Réglages) : active-le, accepte les notifications. Si l'iPhone n'affiche rien au bout de la première matinée, c'est la partie la plus fragile : la lecture du brief n'en dépend pas.
 
+
+**Nouveau logo (novembre 2026)** : Android et les navigateurs le prennent tout seuls. **Sur iPhone, l'ancienne icône reste tant que tu ne réinstalles pas l'appli** : appuie longuement sur l'icône → **Supprimer l'app**, puis refais « Sur l'écran d'accueil » depuis Safari (l'appli ne perd rien : tes données sont sur le NAS et dans Notion).
 ---
 
 ## 8. Mettre à jour l'appli

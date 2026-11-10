@@ -492,8 +492,8 @@ function metadonneesMedia() {
     artist: 'Brief du matin',
     album: dateLongue(brief.date),
     artwork: [
-      { src: new URL('icons/icon-192.png', base).href, sizes: '192x192', type: 'image/png' },
-      { src: new URL('icons/icon-512.png', base).href, sizes: '512x512', type: 'image/png' },
+      { src: new URL('icons/icon-192.png?v=3', base).href, sizes: '192x192', type: 'image/png' },
+      { src: new URL('icons/icon-512.png?v=3', base).href, sizes: '512x512', type: 'image/png' },
     ],
   });
 }

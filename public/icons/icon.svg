@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Brief : un lever de soleil fait de barres de forme d'onde">
+  <!-- Logo de Brief (le podcast du matin) : un lever de soleil dessiné en barres de forme d'onde, posé sur l'horizon.
+       100 % à plat : deux couleurs unies, celles de l'appli (fond #0b100d, accent #4cc47f), aucun dégradé ni effet.
+       Même langage que les icônes de l'interface : traits arrondis. Fichier maître : les PNG sont fabriqués par outils/exporter-icones.py. -->
+  <!--fond--><rect width="512" height="512" fill="#0b100d"/><!--/fond-->
+  <!--symbole-->
+  <g fill="none" stroke="#4cc47f" stroke-width="44" stroke-linecap="round">
+    <path d="M100 201V305"/>
+    <path d="M178 149V305"/>
+    <path d="M256 134V305"/>
+    <path d="M334 149V305"/>
+    <path d="M412 201V305"/>
+    <path d="M80 379H432"/>
+  </g>
+  <!--/symbole-->
+</svg>

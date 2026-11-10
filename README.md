@@ -150,7 +150,8 @@ Mêmes règles que Repax : jeton d'au moins 32 caractères (sinon la route n'exi
 | `donnees.js` | Cache de la liste (15 min), des textes, progression, réglages |
 | `rappel.js`, `widget.js`, `temps.js` | Notification du matin, widget, dates de Paris |
 | `public/` | L'appli (HTML, CSS, JS simples, service worker, icônes) |
-| `outils/icones.py` | Fabrique les icônes (`python3 outils/icones.py`) |
+| `public/icons/icon.svg` | **Logo (fichier maître)** : un lever de soleil en barres de forme d'onde, à plat (deux couleurs : le fond et l'accent de l'appli) |
+| `outils/exporter-icones.py` | Fabrique les PNG (icônes 512/192/180, maskable, favicon) depuis le logo ; outil de développement, hors appli et hors Docker. Aperçu avant/après : [docs/logo-apercu.png](docs/logo-apercu.png) |
 | `docs/MISE-EN-LIGNE.md` | Mise en ligne pas à pas sur le NAS |
 
 ## Mise en ligne

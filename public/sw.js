@@ -3,11 +3,14 @@
 //  - L'audio en ligne n'est JAMAIS intercepté (Safari est exigeant sur les requêtes « Range » : on le laisse parler au serveur).
 //  - Hors ligne seulement, l'appli lit /audio-cache/AAAA-MM-JJ.mp3 : on le sert depuis le fichier gardé par la page (cache « brief-audio »),
 //    en découpant la réponse selon l'en-tête « Range », comme le ferait un serveur.
-const CACHE = 'brief';
+const CACHE = 'brief-v3'; // changer ce nom force les téléphones à abandonner les anciennes copies (icônes comprises)
 const CACHE_AUDIO = 'brief-audio';
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (e) => e.waitUntil((async () => {
+  for (const nom of await caches.keys()) if (nom !== CACHE && nom !== CACHE_AUDIO) await caches.delete(nom); // l'audio gardé hors ligne reste
+  await self.clients.claim();
+})()));
 
 async function audioGarde(req) {
   const url = new URL(req.url);
@@ -52,7 +55,7 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   e.waitUntil(self.registration.showNotification('Brief du matin', {
     body: 'Ton brief est prêt. Appuie pour l’écouter.',
-    icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'brief-du-matin', data: { url: './#aujourdhui' },
+    icon: 'icons/icon-192.png?v=3', badge: 'icons/icon-192.png?v=3', tag: 'brief-du-matin', data: { url: './#aujourdhui' },
   }));
 });
 self.addEventListener('notificationclick', (e) => {

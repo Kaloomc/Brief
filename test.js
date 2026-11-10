@@ -873,3 +873,38 @@ test('interface : champs à 16 px (sinon Safari zoome), pas de zoom bloqué, zon
   assert.match(html, /viewport-fit=cover/);
   assert.ok(!/user-scalable=no|maximum-scale/.test(html), 'le zoom ne doit pas être bloqué (accessibilité)');
 });
+
+test('logo : manifest, icônes (coins arrondis transparents pour « any », carrés pleins ailleurs), maskable, favicon, logo à plat', () => {
+  const pub = path.join(__dirname, 'public');
+  const manifest = JSON.parse(fs.readFileSync(path.join(pub, 'manifest.json'), 'utf8'));
+  const dims = (f) => { const b = fs.readFileSync(path.join(pub, f)); assert.strictEqual(b.subarray(1, 4).toString(), 'PNG', f); return { l: b.readUInt32BE(16), h: b.readUInt32BE(20), couleur: b[25] }; };
+  const cible = (src) => src.split('?')[0];
+  for (const icone of manifest.icons.filter((i) => i.type === 'image/png')) {
+    const d = dims(cible(icone.src));
+    assert.strictEqual(`${d.l}x${d.h}`, icone.sizes, icone.src);
+    // « any » : RVBA (coins arrondis transparents) ; « maskable » : carré plein, sans canal alpha (le système découpe lui-même)
+    assert.strictEqual(d.couleur, icone.purpose === 'maskable' ? 2 : 6, `${icone.src} : ${icone.purpose}`);
+  }
+  assert.ok(manifest.icons.some((i) => i.purpose === 'maskable' && i.sizes === '512x512'), 'icône maskable 512');
+  assert.ok(manifest.icons.some((i) => i.purpose === 'any' && i.sizes === '512x512') && manifest.icons.some((i) => i.purpose === 'any' && i.sizes === '192x192'));
+  assert.ok(manifest.icons.every((i) => i.purpose === 'any' || i.purpose === 'maskable'), 'plus de « any maskable » mélangés');
+  assert.strictEqual(manifest.background_color, '#0b100d');
+  const apple = dims('icons/icon-180.png');
+  assert.deepStrictEqual([apple.l, apple.couleur], [180, 2], 'apple-touch-icon : carré plein 180, sans alpha (iOS arrondit et remplirait la transparence en noir)');
+  assert.deepStrictEqual([dims('icons/favicon-32.png').l, dims('icons/favicon-32.png').couleur], [32, 2], 'favicon sur fond plein');
+  assert.ok(fs.existsSync(path.join(pub, 'favicon.ico')));
+  const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
+  assert.match(html, /rel="apple-touch-icon" href="icons\/icon-180\.png/);
+  assert.match(html, /rel="icon" href="icons\/icon\.svg/);
+  // Logo 100 % à plat : deux couleurs unies, celles de l'appli, sans dégradé, flou, transparence ni texte
+  const svg = fs.readFileSync(path.join(pub, 'icons', 'icon.svg'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  assert.ok(!/Gradient|<filter|opacity|<text|<image|font-family|<mask|<clipPath/i.test(svg), 'logo : aucun effet');
+  const couleurs = new Set(svg.match(/#[0-9a-fA-F]{6}/g).map((c) => c.toLowerCase()));
+  assert.deepStrictEqual([...couleurs].sort(), ['#0b100d', '#4cc47f'], 'deux couleurs : le fond et l\'accent de l\'appli');
+  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
+  assert.match(css, /--fond: #0b100d/);
+  assert.match(css, /--accent: #4cc47f/);
+  const sw = fs.readFileSync(path.join(pub, 'sw.js'), 'utf8');
+  assert.match(sw, /const CACHE = 'brief-v\d+'/);
+  assert.match(sw, /caches\.delete\(nom\)/, 'les anciens caches sont supprimés');
+});
